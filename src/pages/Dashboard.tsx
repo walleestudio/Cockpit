@@ -78,6 +78,10 @@ export const Dashboard: React.FC = () => {
                     trend={12.5}
                     trendLabel="vs 30 derniers jours"
                     icon={Users}
+                    help={{
+                        definition: "Nombre d'utilisateurs distincts ayant lancé au moins un jeu.",
+                        usage: "Mesure la taille de votre audience active."
+                    }}
                 />
                 <KPICard
                     title="Temps de Jeu Total"
@@ -85,6 +89,10 @@ export const Dashboard: React.FC = () => {
                     trend={8.2}
                     trendLabel="vs 30 derniers jours"
                     icon={Clock}
+                    help={{
+                        definition: "Somme de toutes les durées de sessions de jeu.",
+                        usage: "Indicateur clé de l'engagement global."
+                    }}
                 />
                 <KPICard
                     title="Sessions Totales"
@@ -92,6 +100,10 @@ export const Dashboard: React.FC = () => {
                     trend={-2.4}
                     trendLabel="vs 30 derniers jours"
                     icon={Gamepad2}
+                    help={{
+                        definition: "Nombre total de parties lancées.",
+                        usage: "Reflète la fréquence d'utilisation de l'application."
+                    }}
                 />
                 <KPICard
                     title="Taux de Conversion"
@@ -99,6 +111,10 @@ export const Dashboard: React.FC = () => {
                     trend={5.1}
                     trendLabel="vs 30 derniers jours"
                     icon={TrendingUp}
+                    help={{
+                        definition: "Pourcentage d'utilisateurs passant à l'achat.",
+                        usage: "Mesure l'efficacité de votre monétisation."
+                    }}
                 />
             </div>
 

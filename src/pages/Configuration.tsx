@@ -166,7 +166,7 @@ const ConfigCard: React.FC<ConfigCardProps> = ({ config, onSave, isSaving }) => 
                         <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" title="Modifications non enregistrées" />
                     )}
                 </div>
-                <p className="text-sm text-text-muted line-clamp-2 min-h-[2.5em]">{config.description || 'Aucune description'}</p>
+                <p className="text-sm text-text-muted min-h-[2.5em]">{config.description || 'Aucune description'}</p>
             </div>
 
             <div className="mt-auto space-y-3">

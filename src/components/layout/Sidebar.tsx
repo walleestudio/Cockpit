@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Gamepad2, Users, History, Download, X, Settings } from 'lucide-react'
+import { LayoutDashboard, Gamepad2, Users, Download, Settings, LineChart, X } from 'lucide-react'
 import { clsx } from 'clsx'
 
 interface SidebarProps {
@@ -9,12 +9,12 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-    { label: 'Analytics Jeux', icon: Gamepad2, path: '/games' },
-    { label: 'Utilisateurs', icon: Users, path: '/users' },
-    { label: 'Temporel', icon: History, path: '/timeline' },
-    { label: 'Export', icon: Download, path: '/export' },
-    { label: 'Configuration', icon: Settings, path: '/config' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Gamepad2, label: 'Games', path: '/games' },
+    { icon: Users, label: 'Users', path: '/users' },
+    { icon: LineChart, label: 'Insights', path: '/insights' },
+    { icon: Download, label: 'Export', path: '/export' },
+    { icon: Settings, label: 'Configuration', path: '/config' },
 ]
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {

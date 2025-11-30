@@ -13,6 +13,7 @@
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
     "@capacitor/ios": "^7.4.4",
+    "@neondatabase/serverless": "^1.0.2",
     "@supabase/supabase-js": "^2.84.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

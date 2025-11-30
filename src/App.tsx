@@ -6,6 +6,7 @@ import { Users } from './pages/Users'
 import { Timeline } from './pages/Timeline'
 import { Export } from './pages/Export'
 import { Configuration } from './pages/Configuration'
+import GameInsights from './pages/GameInsights'
 
 import { AuthProvider } from './components/auth/AuthProvider'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -23,6 +24,7 @@ function App() {
             <Route path="users" element={<Users />} />
             <Route path="timeline" element={<Timeline />} />
             <Route path="export" element={<Export />} />
+            <Route path="insights" element={<GameInsights />} />
             <Route path="config" element={
               <ProtectedRoute>
                 <Configuration />
