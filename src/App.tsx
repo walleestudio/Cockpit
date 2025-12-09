@@ -7,33 +7,26 @@ import { Timeline } from './pages/Timeline'
 import { Export } from './pages/Export'
 import { Configuration } from './pages/Configuration'
 import GameInsights from './pages/GameInsights'
-
-import { AuthProvider } from './components/auth/AuthProvider'
-import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { Login } from './pages/Login'
+import CostMetrics from './pages/CostMetrics'
+import Moderation from './pages/Moderation'
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="games" element={<Games />} />
-            <Route path="users" element={<Users />} />
-            <Route path="timeline" element={<Timeline />} />
-            <Route path="export" element={<Export />} />
-            <Route path="insights" element={<GameInsights />} />
-            <Route path="config" element={
-              <ProtectedRoute>
-                <Configuration />
-              </ProtectedRoute>
-            } />
-          </Route>
-        </Routes>
-      </Router>
-    </AuthProvider>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="games" element={<Games />} />
+          <Route path="users" element={<Users />} />
+          <Route path="timeline" element={<Timeline />} />
+          <Route path="export" element={<Export />} />
+          <Route path="insights" element={<GameInsights />} />
+          <Route path="cost-metrics" element={<CostMetrics />} />
+          <Route path="moderation" element={<Moderation />} />
+          <Route path="config" element={<Configuration />} />
+        </Route>
+      </Routes>
+    </Router>
   )
 }
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Gamepad2, Users, Download, Settings, LineChart, X } from 'lucide-react'
+import { LayoutDashboard, Gamepad2, Users, Download, Settings, LineChart, X, DollarSign, Shield } from 'lucide-react'
 import { clsx } from 'clsx'
 
 interface SidebarProps {
@@ -13,6 +13,8 @@ const NAV_ITEMS = [
     { icon: Gamepad2, label: 'Games', path: '/games' },
     { icon: Users, label: 'Users', path: '/users' },
     { icon: LineChart, label: 'Insights', path: '/insights' },
+    { icon: DollarSign, label: 'Cost & Performance', path: '/cost-metrics' },
+    { icon: Shield, label: 'Modération', path: '/moderation' },
     { icon: Download, label: 'Export', path: '/export' },
     { icon: Settings, label: 'Configuration', path: '/config' },
 ]
