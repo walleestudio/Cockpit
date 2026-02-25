@@ -59,12 +59,12 @@ export class ModerationService {
                     
                     -- Statut
                     CASE 
-                        WHEN c.is_deleted = TRUE THEN '🗑️ Supprimé'
-                        WHEN c.is_hidden = TRUE THEN '🚫 Masqué'
-                        WHEN COALESCE(actual_reports_count.count, 0) >= 10 THEN '⚠️ Auto-masqué (10+ signalements)'
-                        WHEN COALESCE(actual_reports_count.count, 0) >= 5 THEN '🔴 Critique (5-9 signalements)'
-                        WHEN COALESCE(actual_reports_count.count, 0) >= 2 THEN '🟠 Attention (2-4 signalements)'
-                        ELSE '🟡 Signalé (1 signalement)'
+                        WHEN c.is_deleted = TRUE THEN 'Supprimé'
+                        WHEN c.is_hidden = TRUE THEN 'Masqué'
+                        WHEN COALESCE(actual_reports_count.count, 0) >= 10 THEN 'Auto-masqué'
+                        WHEN COALESCE(actual_reports_count.count, 0) >= 5 THEN 'Critique'
+                        WHEN COALESCE(actual_reports_count.count, 0) >= 2 THEN 'Attention'
+                        ELSE 'Signalé'
                     END as statut,
                     
                     c.is_hidden as est_masque,

@@ -64,11 +64,11 @@ export default function Moderation() {
     }
 
     const getStatusColor = (statut: string) => {
-        if (statut.includes('🗑️')) return 'text-gray-400'
-        if (statut.includes('🚫')) return 'text-orange-400'
-        if (statut.includes('⚠️')) return 'text-red-500 font-bold'
-        if (statut.includes('🔴')) return 'text-red-400'
-        if (statut.includes('🟠')) return 'text-orange-400'
+        if (statut === 'Supprimé') return 'text-gray-400'
+        if (statut === 'Masqué') return 'text-orange-400'
+        if (statut === 'Auto-masqué') return 'text-red-500 font-bold'
+        if (statut === 'Critique') return 'text-red-400'
+        if (statut === 'Attention') return 'text-orange-400'
         return 'text-yellow-400'
     }
 
@@ -210,9 +210,9 @@ export default function Moderation() {
                                         </td>
                                         <td className="py-4 px-6 text-center">
                                             <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${comment.nombre_signalements_reel >= 10 ? 'bg-red-500/20 text-red-400' :
-                                                    comment.nombre_signalements_reel >= 5 ? 'bg-red-500/20 text-red-400' :
-                                                        comment.nombre_signalements_reel >= 2 ? 'bg-orange-500/20 text-orange-400' :
-                                                            'bg-yellow-500/20 text-yellow-400'
+                                                comment.nombre_signalements_reel >= 5 ? 'bg-red-500/20 text-red-400' :
+                                                    comment.nombre_signalements_reel >= 2 ? 'bg-orange-500/20 text-orange-400' :
+                                                        'bg-yellow-500/20 text-yellow-400'
                                                 }`}>
                                                 {comment.nombre_signalements_reel}
                                             </span>
@@ -231,8 +231,8 @@ export default function Moderation() {
                                                     onClick={() => handleToggleHide(comment)}
                                                     disabled={hidingId === comment.commentaire_id}
                                                     className={`p-2 rounded-lg transition-colors ${comment.est_masque
-                                                            ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
-                                                            : 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
+                                                        ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                                                        : 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
                                                         } disabled:opacity-50`}
                                                     title={comment.est_masque ? 'Afficher' : 'Masquer'}
                                                 >

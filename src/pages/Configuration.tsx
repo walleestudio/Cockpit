@@ -3,6 +3,7 @@ import { Save, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
 import { ConfigService, type GameConfig, type ConfigCategory } from '../services/configService'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorAlert } from '../components/ui/ErrorAlert'
+import { getCurrentEnv, switchEnv, type AppEnv } from '../lib/neon'
 
 export const Configuration: React.FC = () => {
     const [configs, setConfigs] = useState<GameConfig[]>([])
@@ -10,6 +11,11 @@ export const Configuration: React.FC = () => {
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState<string | null>(null)
     const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+    const [currentEnv, setCurrentEnv] = useState<AppEnv>('PROD')
+
+    useEffect(() => {
+        setCurrentEnv(getCurrentEnv())
+    }, [])
 
     const loadConfigurations = async () => {
         try {
@@ -94,13 +100,37 @@ export const Configuration: React.FC = () => {
                     <h1 className="text-3xl font-bold text-white tracking-tight">Configuration</h1>
                     <p className="text-text-muted mt-1">Gérer les paramètres de l'application</p>
                 </div>
-                <button
-                    onClick={loadConfigurations}
-                    className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-lg text-sm font-medium text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-                >
-                    <RefreshCw size={16} />
-                    Actualiser
-                </button>
+                <div className="flex items-center gap-4">
+                    {/* Environment Switcher */}
+                    <div className="flex items-center bg-surface border border-border rounded-lg p-1">
+                        <button
+                            onClick={() => switchEnv('PROD')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${currentEnv === 'PROD'
+                                ? 'bg-primary text-white shadow-sm'
+                                : 'text-text-muted hover:text-white'
+                                }`}
+                        >
+                            PROD
+                        </button>
+                        <button
+                            onClick={() => switchEnv('DEV')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${currentEnv === 'DEV'
+                                ? 'bg-amber-500 text-white shadow-sm'
+                                : 'text-text-muted hover:text-white'
+                                }`}
+                        >
+                            DEV
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={loadConfigurations}
+                        className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-lg text-sm font-medium text-text-muted hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                        <RefreshCw size={16} />
+                        Actualiser
+                    </button>
+                </div>
             </div>
 
             <div className="grid gap-8">

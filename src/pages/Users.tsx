@@ -29,7 +29,8 @@ export const Users: React.FC = () => {
     }, [])
 
     const filteredUsers = users.filter(user =>
-        user.user_id.toLowerCase().includes(searchTerm.toLowerCase())
+        user.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.pseudo || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     // Distribution des sessions
@@ -113,7 +114,12 @@ export const Users: React.FC = () => {
                 <DataTable
                     data={filteredUsers}
                     columns={[
-                        { key: 'pseudo', label: 'Pseudo', sortable: true },
+                        {
+                            key: 'pseudo',
+                            label: 'Pseudo',
+                            sortable: true,
+                            render: (val, item) => (String(val || '').trim() || item.user_id)
+                        },
                         { key: 'user_id', label: 'ID Utilisateur', sortable: true },
                         { key: 'total_sessions', label: 'Sessions', sortable: true },
                         {

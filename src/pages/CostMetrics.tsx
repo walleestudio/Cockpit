@@ -134,7 +134,7 @@ export default function CostMetrics() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <KPICard
                                     title="DB Requests (7j)"
-                                    value={overview?.total_db_requests?.toLocaleString() || '0'}
+                                    value={(overview?.total_db_requests || 0).toLocaleString()}
                                     trend={overview?.trend_db_requests || 0}
                                     trendLabel="vs 7 derniers jours"
                                     icon={Database}
@@ -156,7 +156,7 @@ export default function CostMetrics() {
                                 />
                                 <KPICard
                                     title="Auth Sessions (7j)"
-                                    value={overview?.total_auth_sessions?.toLocaleString() || '0'}
+                                    value={(overview?.total_auth_sessions || 0).toLocaleString()}
                                     trend={overview?.trend_auth || 0}
                                     trendLabel="vs 7 derniers jours"
                                     icon={Shield}
@@ -380,8 +380,8 @@ export default function CostMetrics() {
                                             <tr key={idx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
                                                 <td className="py-3 px-4 text-sm text-white">{new Date(alert.metric_date).toLocaleDateString('fr-FR')}</td>
                                                 <td className="py-3 px-4 text-sm text-white">{alert.metric_type}</td>
-                                                <td className="py-3 px-4 text-sm text-white text-right">{alert.total_value.toLocaleString()}</td>
-                                                <td className="py-3 px-4 text-sm text-slate-400 text-right">{alert.threshold.toLocaleString()}</td>
+                                                <td className="py-3 px-4 text-sm text-white text-right">{(alert.total_value || 0).toLocaleString()}</td>
+                                                <td className="py-3 px-4 text-sm text-slate-400 text-right">{(alert.threshold || 0).toLocaleString()}</td>
                                                 <td className={`py-3 px-4 text-sm font-medium text-right ${alert.overage_percent > 20 ? 'text-red-400' : 'text-yellow-400'}`}>
                                                     +{alert.overage_percent.toFixed(1)}%
                                                 </td>
@@ -494,7 +494,7 @@ export default function CostMetrics() {
                                         <tr key={idx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
                                             <td className="py-3 px-4 text-sm text-white">{new Date(trend.metric_date).toLocaleDateString('fr-FR')}</td>
                                             <td className="py-3 px-4 text-sm text-white">{trend.metric_type}</td>
-                                            <td className="py-3 px-4 text-sm text-white text-right">{trend.total_value.toLocaleString()}</td>
+                                            <td className="py-3 px-4 text-sm text-white text-right">{(trend.total_value || 0).toLocaleString()}</td>
                                             <td className="py-3 px-4 text-sm text-slate-400 text-right">{trend.previous_value?.toLocaleString() || '-'}</td>
                                             <td className="py-3 px-4 text-sm text-white text-right">{trend.difference?.toLocaleString() || '-'}</td>
                                             <td className={`py-3 px-4 text-sm font-medium text-right ${trend.percent_change === null ? 'text-slate-400' :

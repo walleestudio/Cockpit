@@ -74,7 +74,7 @@ export const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard
                     title="Joueurs Uniques"
-                    value={kpis?.unique_players.toLocaleString() || 0}
+                    value={(kpis?.unique_players || 0).toLocaleString()}
                     trend={12.5}
                     trendLabel="vs 30 derniers jours"
                     icon={Users}
@@ -96,7 +96,7 @@ export const Dashboard: React.FC = () => {
                 />
                 <KPICard
                     title="Sessions Totales"
-                    value={kpis?.total_sessions.toLocaleString() || 0}
+                    value={(kpis?.total_sessions || 0).toLocaleString()}
                     trend={-2.4}
                     trendLabel="vs 30 derniers jours"
                     icon={Gamepad2}

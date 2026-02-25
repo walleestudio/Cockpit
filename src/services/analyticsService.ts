@@ -163,28 +163,42 @@ export class AnalyticsService {
     static async getUsersAnalytics(limit: number = 100): Promise<UserAnalytics[]> {
         try {
             const query = `
+                WITH latest_usernames AS (
+                    SELECT DISTINCT ON (c.user_id)
+                        c.user_id::text as user_id,
+                        NULLIF(c.username::text, '') as username
+                    FROM comments c
+                    WHERE c.user_id IS NOT NULL
+                      AND NULLIF(c.username::text, '') IS NOT NULL
+                    ORDER BY c.user_id, c.created_at DESC
+                )
                 SELECT 
-                    user_id::text,
-                    (metrics->>'pseudo')::text as pseudo,
+                    s.user_id::text,
+                    COALESCE(
+                      MAX(NULLIF((s.metrics->>'pseudo')::text, '')),
+                      lu.username,
+                      s.user_id::text
+                    )::text as pseudo,
                     COUNT(*)::int as snapshot_count,
-                    ROUND((SUM(cumulative_play_time_seconds) / 3600)::numeric, 2)::float as total_play_time_hours,
-                    SUM((metrics->>'sessionCount')::int)::int as total_sessions,
-                    ROUND((AVG((metrics->>'totalSessionDuration')::float) / 60)::numeric, 2)::float as avg_session_duration_minutes,
-                    SUM((metrics->>'purchaseAttempts')::int)::int as total_purchase_attempts,
-                    SUM((metrics->>'purchaseSuccesses')::int)::int as total_purchase_successes,
-                    SUM((metrics->>'purchaseCancels')::int)::int as total_purchase_cancels,
+                    ROUND((SUM(s.cumulative_play_time_seconds) / 3600)::numeric, 2)::float as total_play_time_hours,
+                    SUM((s.metrics->>'sessionCount')::int)::int as total_sessions,
+                    ROUND((AVG((s.metrics->>'totalSessionDuration')::float) / 60)::numeric, 2)::float as avg_session_duration_minutes,
+                    SUM((s.metrics->>'purchaseAttempts')::int)::int as total_purchase_attempts,
+                    SUM((s.metrics->>'purchaseSuccesses')::int)::int as total_purchase_successes,
+                    SUM((s.metrics->>'purchaseCancels')::int)::int as total_purchase_cancels,
                     ROUND(
                       (CASE 
-                        WHEN SUM((metrics->>'purchaseAttempts')::int) > 0 
-                        THEN (SUM((metrics->>'purchaseSuccesses')::int)::numeric / SUM((metrics->>'purchaseAttempts')::int) * 100)
+                        WHEN SUM((s.metrics->>'purchaseAttempts')::int) > 0 
+                        THEN (SUM((s.metrics->>'purchaseSuccesses')::int)::numeric / SUM((s.metrics->>'purchaseAttempts')::int) * 100)
                         ELSE 0
                       END)::numeric, 2
                     )::float as conversion_rate_percent,
-                    MIN(snapshot_date)::date as first_snapshot_date,
-                    MAX(snapshot_date)::date as last_snapshot_date,
-                    (MAX(snapshot_date)::date - MIN(snapshot_date)::date)::int as user_lifetime_days
-                FROM user_analytics_snapshots
-                GROUP BY user_id, metrics->>'pseudo'
+                    MIN(s.snapshot_date)::date as first_snapshot_date,
+                    MAX(s.snapshot_date)::date as last_snapshot_date,
+                    (MAX(s.snapshot_date)::date - MIN(s.snapshot_date)::date)::int as user_lifetime_days
+                FROM user_analytics_snapshots s
+                LEFT JOIN latest_usernames lu ON lu.user_id = s.user_id::text
+                GROUP BY s.user_id, lu.username
                 ORDER BY total_play_time_hours DESC
                 LIMIT ${limit}
             `
