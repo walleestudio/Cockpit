@@ -1,20 +1,30 @@
 import React, { useEffect, useState } from 'react'
 import { Users, Clock, Gamepad2, TrendingUp, Activity, Trophy } from 'lucide-react'
 import { KPICard } from '../components/ui/KPICard'
+import { MetricHelp } from '../components/ui/MetricHelp'
 import { AnalyticsLineChart } from '../components/ui/charts/LineChart'
 import { AnalyticsDonutChart } from '../components/ui/charts/DonutChart'
 import { DataTable } from '../components/ui/DataTable'
-import { AnalyticsService, type KPIData, type GameAnalytics, type DailyMetrics } from '../services/analyticsService'
+import { ExpandableTable } from '../components/ui/ExpandableTable'
+import { AnalyticsService, type KPIData, type GameAnalytics, type DailyMetrics, type PromotedGame } from '../services/analyticsService'
 import { DateRangePicker } from '../components/ui/DateRangePicker'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorAlert } from '../components/ui/ErrorAlert'
+import { APP_HELP } from '../help/appHelp'
 
 export const Dashboard: React.FC = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [kpis, setKpis] = useState<KPIData | null>(null)
     const [topGames, setTopGames] = useState<GameAnalytics[]>([])
+    const [promotedGames, setPromotedGames] = useState<PromotedGame[]>([])
     const [dailyMetrics, setDailyMetrics] = useState<DailyMetrics[]>([])
+    const [kpiTrends, setKpiTrends] = useState({
+        unique_players: 0,
+        total_play_time_hours: 0,
+        total_sessions: 0,
+        conversion_rate_percent: 0
+    })
     const [dateRange, setDateRange] = useState({
         start: new Date(new Date().setDate(new Date().getDate() - 30)),
         end: new Date()
@@ -24,14 +34,65 @@ export const Dashboard: React.FC = () => {
         const fetchData = async () => {
             try {
                 setLoading(true)
-                const [kpiData, gamesData, metricsData] = await Promise.all([
-                    AnalyticsService.getKPIs(30),
-                    AnalyticsService.getGamesAnalytics(30),
-                    AnalyticsService.getDailyMetrics(30)
+                const days = Math.max(
+                    1,
+                    Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24))
+                )
+                const results = await Promise.allSettled([
+                    AnalyticsService.getKPIs(days),
+                    AnalyticsService.getGamesAnalytics(days),
+                    AnalyticsService.getDailyMetrics(days),
+                    AnalyticsService.getPromotedGames(days, 5)
                 ])
+                const [kpiRes, gamesRes, dailyRes, promotedRes] = results
+
+                const kpiData = kpiRes.status === 'fulfilled' ? kpiRes.value : null
+                const gamesData = gamesRes.status === 'fulfilled' ? gamesRes.value : []
+                const metricsData = dailyRes.status === 'fulfilled' ? dailyRes.value : []
+                const promotedData = promotedRes.status === 'fulfilled' ? promotedRes.value : []
+
                 setKpis(kpiData)
                 setTopGames(gamesData.slice(0, 5))
+                setPromotedGames(promotedData)
                 setDailyMetrics(metricsData)
+
+                if (kpiData) {
+                    try {
+                        const prevKpiData = await AnalyticsService.getKPIs(days, days)
+                        setKpiTrends({
+                            unique_players: computeTrend(kpiData?.unique_players || 0, prevKpiData?.unique_players || 0),
+                            total_play_time_hours: computeTrend(kpiData?.total_play_time_hours || 0, prevKpiData?.total_play_time_hours || 0),
+                            total_sessions: computeTrend(kpiData?.total_sessions || 0, prevKpiData?.total_sessions || 0),
+                            conversion_rate_percent: computeTrend(kpiData?.conversion_rate_percent || 0, prevKpiData?.conversion_rate_percent || 0)
+                        })
+                    } catch (prevErr) {
+                        console.error('Dashboard previous KPI fetch failed:', prevErr)
+                        setKpiTrends({
+                            unique_players: 0,
+                            total_play_time_hours: 0,
+                            total_sessions: 0,
+                            conversion_rate_percent: 0
+                        })
+                    }
+                } else {
+                    setKpiTrends({
+                        unique_players: 0,
+                        total_play_time_hours: 0,
+                        total_sessions: 0,
+                        conversion_rate_percent: 0
+                    })
+                }
+
+                const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+                if (rejected.length > 0) {
+                    console.error('Some dashboard queries failed:', rejected.map(r => r.reason))
+                }
+
+                if (rejected.length === results.length) {
+                    setError('Erreur lors du chargement des données')
+                } else {
+                    setError(null)
+                }
             } catch (err) {
                 setError('Erreur lors du chargement des données')
                 console.error(err)
@@ -55,6 +116,12 @@ export const Dashboard: React.FC = () => {
         name: g.game_id,
         value: g.total_launches
     }))
+    const trendLabel = `vs ${Math.max(1, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24)))} jours précédents`
+
+    const computeTrend = (current: number, previous: number) => {
+        if (!previous) return current > 0 ? 100 : 0
+        return Number((((current - previous) / previous) * 100).toFixed(1))
+    }
 
     return (
         <div className="space-y-8">
@@ -75,46 +142,34 @@ export const Dashboard: React.FC = () => {
                 <KPICard
                     title="Joueurs Uniques"
                     value={(kpis?.unique_players || 0).toLocaleString()}
-                    trend={12.5}
-                    trendLabel="vs 30 derniers jours"
+                    trend={kpiTrends.unique_players}
+                    trendLabel={trendLabel}
                     icon={Users}
-                    help={{
-                        definition: "Nombre d'utilisateurs distincts ayant lancé au moins un jeu.",
-                        usage: "Mesure la taille de votre audience active."
-                    }}
+                    content={APP_HELP['dashboard-joueurs-uniques']}
                 />
                 <KPICard
                     title="Temps de Jeu Total"
                     value={`${Math.round(kpis?.total_play_time_hours || 0)}h`}
-                    trend={8.2}
-                    trendLabel="vs 30 derniers jours"
+                    trend={kpiTrends.total_play_time_hours}
+                    trendLabel={trendLabel}
                     icon={Clock}
-                    help={{
-                        definition: "Somme de toutes les durées de sessions de jeu.",
-                        usage: "Indicateur clé de l'engagement global."
-                    }}
+                    content={APP_HELP['dashboard-temps-jeu-total']}
                 />
                 <KPICard
                     title="Sessions Totales"
                     value={(kpis?.total_sessions || 0).toLocaleString()}
-                    trend={-2.4}
-                    trendLabel="vs 30 derniers jours"
+                    trend={kpiTrends.total_sessions}
+                    trendLabel={trendLabel}
                     icon={Gamepad2}
-                    help={{
-                        definition: "Nombre total de parties lancées.",
-                        usage: "Reflète la fréquence d'utilisation de l'application."
-                    }}
+                    content={APP_HELP['dashboard-sessions-totales']}
                 />
                 <KPICard
                     title="Taux de Conversion"
                     value={`${(kpis?.conversion_rate_percent || 0).toFixed(1)}%`}
-                    trend={5.1}
-                    trendLabel="vs 30 derniers jours"
+                    trend={kpiTrends.conversion_rate_percent}
+                    trendLabel={trendLabel}
                     icon={TrendingUp}
-                    help={{
-                        definition: "Pourcentage d'utilisateurs passant à l'achat.",
-                        usage: "Mesure l'efficacité de votre monétisation."
-                    }}
+                    content={APP_HELP['dashboard-taux-conversion']}
                 />
             </div>
 
@@ -125,6 +180,7 @@ export const Dashboard: React.FC = () => {
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                             <Activity size={20} className="text-primary" />
                             Activité Joueurs
+                            <MetricHelp content={APP_HELP['dashboard-activite-joueurs']} />
                         </h3>
                     </div>
                     <AnalyticsLineChart
@@ -141,6 +197,7 @@ export const Dashboard: React.FC = () => {
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                             <Trophy size={20} className="text-yellow-500" />
                             Top Jeux
+                            <MetricHelp content={APP_HELP['dashboard-top-jeux']} />
                         </h3>
                     </div>
                     <AnalyticsDonutChart
@@ -150,12 +207,58 @@ export const Dashboard: React.FC = () => {
                 </div>
             </div>
 
+            {/* Jeux à mettre en avant */}
+            {promotedGames.length > 0 && (
+                <div className="bg-surface border border-border rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                            Jeux à mettre en avant
+                            <MetricHelp content={APP_HELP['dashboard-jeux-a-mettre-en-avant']} />
+                        </h3>
+                        <span className="text-xs text-text-muted">Score = partages×2 + likes + bookmarks / joueurs (pondéré rétention & temps)</span>
+                    </div>
+                    <DataTable
+                        data={promotedGames}
+                        columns={[
+                            { key: 'game_id', label: 'Jeu', sortable: true },
+                            { key: 'promoted_score', label: 'Score', sortable: true, render: (val) => Number(val).toFixed(2) },
+                            { key: 'unique_players', label: 'Joueurs', sortable: true },
+                            { key: 'total_launches', label: 'Lancements', sortable: true },
+                            { key: 'total_shares', label: 'Partages', sortable: true },
+                            {
+                                key: 'net_likes',
+                                label: 'Likes',
+                                sortable: true,
+                                render: (_val, row) => (row && Number(row.net_likes ?? 0)) ?? '–'
+                            },
+                            {
+                                key: 'total_bookmarks',
+                                label: 'Favoris',
+                                sortable: true,
+                                render: (_val, row) => (row && Number(row.total_bookmarks ?? 0)) ?? '–'
+                            },
+                            {
+                                key: 'exit_rate_percent',
+                                label: 'Sortie %',
+                                sortable: true,
+                                render: (val) => (
+                                    <span className={Number(val) > 50 ? 'text-red-500' : 'text-success'}>{Number(val).toFixed(1)}%</span>
+                                )
+                            }
+                        ]}
+                    />
+                </div>
+            )}
+
             {/* Recent Games Table */}
             <div className="bg-surface border border-border rounded-xl p-6">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-white">Jeux Populaires</h3>
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        Jeux Populaires
+                        <MetricHelp content={APP_HELP['dashboard-jeux-populaires']} />
+                    </h3>
                 </div>
-                <DataTable
+                <ExpandableTable
                     data={topGames}
                     columns={[
                         { key: 'game_id', label: 'Jeu', sortable: true },

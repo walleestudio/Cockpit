@@ -7,7 +7,10 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     return (
-        <header className="bg-background/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
+        <header
+            className="bg-background/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 pt-[env(safe-area-inset-top)]"
+            style={{ backgroundColor: 'rgba(5,5,5,0.9)', color: '#ffffff' }}
+        >
             <div className="h-16 flex items-center justify-between px-6">
                 <button
                     onClick={onMenuClick}

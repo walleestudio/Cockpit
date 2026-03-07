@@ -9,6 +9,8 @@ import { Configuration } from './pages/Configuration'
 import GameInsights from './pages/GameInsights'
 import CostMetrics from './pages/CostMetrics'
 import Moderation from './pages/Moderation'
+import { VerifyData } from './pages/VerifyData'
+import { Recommendations } from './pages/Recommendations'
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
           <Route path="cost-metrics" element={<CostMetrics />} />
           <Route path="moderation" element={<Moderation />} />
           <Route path="config" element={<Configuration />} />
+          <Route path="verify" element={<VerifyData />} />
+          <Route path="recommendations" element={<Recommendations />} />
         </Route>
       </Routes>
     </Router>

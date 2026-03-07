@@ -7,12 +7,15 @@ import {
     Activity, Users, DollarSign, TrendingUp, AlertTriangle, Heart, MessageSquare, Bookmark
 } from 'lucide-react'
 import { AnalyticsService } from '../services/analyticsService'
-import type { GameFlowMetrics, SocialMetrics, MonetizationMetrics } from '../services/analyticsService'
+import type { GameFlowMetrics, SocialMetrics, MonetizationMetrics, ConversionByGame, GameAnalytics } from '../services/analyticsService'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorAlert } from '../components/ui/ErrorAlert'
 import { MetricHelp } from '../components/ui/MetricHelp'
+import { APP_HELP } from '../help/appHelp'
+import { ExpandableTable } from '../components/ui/ExpandableTable'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8']
+const CHART_THEME = { surface: '#0A0A0A', border: '#222222', axis: '#71717a' }
 
 export default function GameInsights() {
     const [loading, setLoading] = useState(true)
@@ -22,6 +25,7 @@ export default function GameInsights() {
     const [flowMetrics, setFlowMetrics] = useState<GameFlowMetrics[]>([])
     const [socialMetrics, setSocialMetrics] = useState<SocialMetrics[]>([])
     const [monetizationMetrics, setMonetizationMetrics] = useState<MonetizationMetrics | null>(null)
+    const [conversionByGame, setConversionByGame] = useState<ConversionByGame[]>([])
 
     useEffect(() => {
         loadData()
@@ -30,50 +34,77 @@ export default function GameInsights() {
     const loadData = async () => {
         try {
             setLoading(true)
-            const [flow, social, monetization] = await Promise.all([
+            const [flow, social, monetization, conversionByGameRes, gamesAnalytics] = await Promise.all([
                 AnalyticsService.getGameFlowMetrics(),
                 AnalyticsService.getSocialMetrics(),
-                AnalyticsService.getMonetizationMetrics()
+                AnalyticsService.getMonetizationMetrics(),
+                AnalyticsService.getConversionByGame(30),
+                AnalyticsService.getGamesAnalytics(30)
             ])
             setFlowMetrics(flow)
-            setSocialMetrics(social)
+            setSocialMetrics(mergeSocialWithGames(social, gamesAnalytics))
             setMonetizationMetrics(monetization)
+            setConversionByGame(conversionByGameRes)
         } catch (err) {
-            setError('Failed to load insights data')
+            setError('Erreur lors du chargement des insights')
             console.error(err)
         } finally {
             setLoading(false)
         }
     }
 
+    /** Fusionne social + games pour que Favoris / Aimés affichent les totaux même si getSocialMetrics ne les a pas */
+    function mergeSocialWithGames(social: SocialMetrics[], games: GameAnalytics[]): SocialMetrics[] {
+        const byGame = new Map(social.map(s => [s.game_id, { ...s }]))
+        for (const g of games) {
+            const bookmarks = Number(g.total_bookmarks ?? g.net_bookmarks ?? 0)
+            const likes = Number(g.total_likes ?? g.net_likes ?? 0)
+            if (bookmarks === 0 && likes === 0) continue
+            const row = byGame.get(g.game_id)
+            if (row) {
+                if ((Number(row.total_bookmarks) || 0) < bookmarks) row.total_bookmarks = bookmarks
+                if ((Number(row.total_likes) || 0) < likes) row.total_likes = likes
+            } else {
+                byGame.set(g.game_id, {
+                    game_id: g.game_id,
+                    social_engagement_rate: 0,
+                    total_bookmarks: bookmarks,
+                    total_likes: likes,
+                    comments_to_players_ratio: 0
+                })
+            }
+        }
+        return Array.from(byGame.values())
+    }
+
     if (loading) return <LoadingSpinner />
     if (error) return <ErrorAlert message={error} />
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-white">Game Insights</h1>
-                <div className="flex space-x-2 bg-slate-800 p-1 rounded-lg">
+        <div className="space-y-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Insights Jeux</h1>
+                    <p className="text-text-muted mt-1">Parcours, social et monétisation par jeu</p>
+                </div>
+                <div className="flex gap-2 bg-surface border border-border p-1 rounded-lg">
                     <button
                         onClick={() => setActiveTab('flow')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'flow' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                            }`}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'flow' ? 'bg-primary text-white' : 'text-text-muted hover:text-white'}`}
                     >
-                        Game Flow
+                        Parcours jeu
                     </button>
                     <button
                         onClick={() => setActiveTab('social')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'social' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                            }`}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'social' ? 'bg-primary text-white' : 'text-text-muted hover:text-white'}`}
                     >
-                        Social & Virality
+                        Social & viralité
                     </button>
                     <button
                         onClick={() => setActiveTab('monetization')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'monetization' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                            }`}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'monetization' ? 'bg-primary text-white' : 'text-text-muted hover:text-white'}`}
                     >
-                        Monetization
+                        Monétisation
                     </button>
                 </div>
             </div>
@@ -81,96 +112,84 @@ export default function GameInsights() {
             {activeTab === 'flow' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Completion Rate */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <div className="bg-surface border border-border rounded-xl p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Completion Rate</h3>
-                                    <MetricHelp
-                                        title="Completion Rate"
-                                        definition="Pourcentage de tentatives qui atteignent le Top 10."
-                                        usage="Indique si le jeu est trop difficile (taux bas) ou trop facile (taux haut)."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Taux de complétion</h3>
+                                    <MetricHelp content={APP_HELP['insights-completion-rate']} />
                                 </div>
-                                <p className="text-sm text-slate-400">Top 10 Attempts / Total Attempts</p>
+                                <p className="text-sm text-text-muted">Tentatives Top 10 / Tentatives totales</p>
                             </div>
-                            <TrendingUp className="text-green-400 w-6 h-6" />
+                            <TrendingUp size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={flowMetrics} layout="vertical" margin={{ left: 40 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                    <XAxis type="number" stroke="#94a3b8" unit="%" />
-                                    <YAxis dataKey="game_id" type="category" stroke="#94a3b8" width={100} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} />
+                                    <XAxis type="number" stroke={CHART_THEME.axis} unit="%" />
+                                    <YAxis dataKey="game_id" type="category" stroke={CHART_THEME.axis} width={100} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
                                         itemStyle={{ color: '#fff' }}
                                     />
-                                    <Bar dataKey="completion_rate_percent" fill="#4ade80" radius={[0, 4, 4, 0]} name="Completion Rate" />
+                                    <Bar dataKey="completion_rate_percent" fill="#4ade80" radius={[0, 4, 4, 0]} name="Taux complétion" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
                     {/* Frustration Index */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <div className="bg-surface border border-border rounded-xl p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Frustration Index</h3>
-                                    <MetricHelp
-                                        title="Frustration Index"
-                                        definition="Pourcentage de parties quittées prématurément (Rage Quit)."
-                                        usage="Un taux élevé signale un gameplay frustrant ou des bugs bloquants."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Indice de frustration</h3>
+                                    <MetricHelp content={APP_HELP['insights-frustration-index']} />
                                 </div>
-                                <p className="text-sm text-slate-400">Rage Quits (Exits / Launches)</p>
+                                <p className="text-sm text-text-muted">Abandons (Sorties / Lancements)</p>
                             </div>
-                            <AlertTriangle className="text-red-400 w-6 h-6" />
+                            <AlertTriangle size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={flowMetrics} layout="vertical" margin={{ left: 40 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                    <XAxis type="number" stroke="#94a3b8" unit="%" />
-                                    <YAxis dataKey="game_id" type="category" stroke="#94a3b8" width={100} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} />
+                                    <XAxis type="number" stroke={CHART_THEME.axis} unit="%" />
+                                    <YAxis dataKey="game_id" type="category" stroke={CHART_THEME.axis} width={100} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
                                         itemStyle={{ color: '#fff' }}
                                     />
-                                    <Bar dataKey="frustration_index_percent" fill="#f87171" radius={[0, 4, 4, 0]} name="Frustration Index" />
+                                    <Bar dataKey="frustration_index_percent" fill="#f87171" radius={[0, 4, 4, 0]} name="Indice frustration" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
                     {/* Intensity */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 lg:col-span-2">
+                    <div className="bg-surface border border-border rounded-xl p-6 lg:col-span-2">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Game Intensity</h3>
-                                    <MetricHelp
-                                        title="Game Intensity"
-                                        definition="Nombre moyen de swipes par heure de jeu."
-                                        usage="Mesure le rythme du jeu. Utile pour équilibrer l'expérience (calme vs intense)."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Intensité jeu</h3>
+                                    <MetricHelp content={APP_HELP['insights-game-intensity']} />
                                 </div>
-                                <p className="text-sm text-slate-400">Swipes per Hour of Gameplay</p>
+                                <p className="text-sm text-text-muted">Swipes par heure de jeu</p>
                             </div>
-                            <Activity className="text-blue-400 w-6 h-6" />
+                            <Activity size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={flowMetrics}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                    <XAxis dataKey="game_id" stroke="#94a3b8" />
-                                    <YAxis stroke="#94a3b8" />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} />
+                                    <XAxis dataKey="game_id" stroke={CHART_THEME.axis} />
+                                    <YAxis stroke={CHART_THEME.axis} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
                                         itemStyle={{ color: '#fff' }}
                                     />
-                                    <Bar dataKey="intensity_swipes_per_hour" fill="#60a5fa" radius={[4, 4, 0, 0]} name="Swipes/Hour" />
+                                    <Bar dataKey="intensity_swipes_per_hour" fill="#60a5fa" radius={[4, 4, 0, 0]} name="Swipes/h" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -181,96 +200,196 @@ export default function GameInsights() {
             {activeTab === 'social' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Social Engagement */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 lg:col-span-2">
+                    <div className="bg-surface border border-border rounded-xl p-6 lg:col-span-2">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Social Engagement Rate</h3>
-                                    <MetricHelp
-                                        title="Social Engagement Rate"
-                                        definition="Moyenne des interactions (Likes + Coms + Shares) par joueur unique."
-                                        usage="Identifie les jeux qui créent une communauté et de la viralité."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Taux d'engagement social</h3>
+                                    <MetricHelp content={APP_HELP['insights-social-engagement']} />
                                 </div>
-                                <p className="text-sm text-slate-400">(Likes + Comments + Shares) / Unique Players</p>
+                                <p className="text-sm text-text-muted">(Likes + Commentaires + Partages) / Joueurs uniques</p>
                             </div>
-                            <Heart className="text-pink-400 w-6 h-6" />
+                            <Heart size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={socialMetrics}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                    <XAxis dataKey="game_id" stroke="#94a3b8" />
-                                    <YAxis stroke="#94a3b8" />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} />
+                                    <XAxis dataKey="game_id" stroke={CHART_THEME.axis} />
+                                    <YAxis stroke={CHART_THEME.axis} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
                                         itemStyle={{ color: '#fff' }}
                                     />
-                                    <Bar dataKey="social_engagement_rate" fill="#f472b6" radius={[4, 4, 0, 0]} name="Engagement Rate" />
+                                    <Bar dataKey="social_engagement_rate" fill="#f472b6" radius={[4, 4, 0, 0]} name="Taux engagement" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
-                    {/* Bookmarks */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    {/* Bookmarks — nuage de noms par favoris */}
+                    <div className="bg-surface border border-border rounded-xl p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Total Bookmarks</h3>
-                                    <MetricHelp
-                                        title="Total Bookmarks"
-                                        definition="Nombre total de fois qu'un jeu a été mis en favoris."
-                                        usage="Indique les jeux 'Coup de cœur' que les joueurs veulent retrouver."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Favoris totaux</h3>
+                                    <MetricHelp content={APP_HELP['insights-total-bookmarks']} />
                                 </div>
-                                <p className="text-sm text-slate-400">Games saved by users</p>
+                                <p className="text-sm text-text-muted">Nuage de jeux — taille = nombre de favoris</p>
                             </div>
-                            <Bookmark className="text-yellow-400 w-6 h-6" />
+                            <Bookmark size={20} className="text-primary" />
                         </div>
-                        <div className="h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={socialMetrics} layout="vertical" margin={{ left: 40 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                    <XAxis type="number" stroke="#94a3b8" />
-                                    <YAxis dataKey="game_id" type="category" stroke="#94a3b8" width={100} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
-                                        itemStyle={{ color: '#fff' }}
-                                    />
-                                    <Bar dataKey="total_bookmarks" fill="#facc15" radius={[0, 4, 4, 0]} name="Bookmarks" />
-                                </BarChart>
-                            </ResponsiveContainer>
+                        <div className="h-80 overflow-auto">
+                            {(() => {
+                                const withBookmarks = socialMetrics.filter(d => (Number(d.total_bookmarks) || 0) > 0)
+                                const maxB = Math.max(1, ...withBookmarks.map(d => Number(d.total_bookmarks) || 0))
+                                const minSize = 12
+                                const maxSize = 26
+                                return (
+                                    <div className="flex flex-wrap gap-x-4 gap-y-3 content-center justify-center items-center min-h-[280px] p-4">
+                                        {withBookmarks.length === 0 ? (
+                                            <p className="text-text-muted text-sm">Aucun favori sur la période</p>
+                                        ) : (
+                                            withBookmarks.map((d) => {
+                                                const v = Number(d.total_bookmarks) || 0
+                                                const size = minSize + (v / maxB) * (maxSize - minSize)
+                                                return (
+                                                    <span
+                                                        key={d.game_id}
+                                                        className="text-primary/90 hover:text-primary font-medium transition-colors"
+                                                        style={{ fontSize: `${size}px` }}
+                                                        title={`${d.game_id} : ${v} favori(s)`}
+                                                    >
+                                                        {d.game_id.replace(/_/g, ' ')}
+                                                    </span>
+                                                )
+                                            })
+                                        )}
+                                    </div>
+                                )
+                            })()}
                         </div>
+                    </div>
+
+                    {/* Aimés totaux — nuage de noms par likes */}
+                    <div className="bg-surface border border-border rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <div className="flex items-center">
+                                    <h3 className="text-lg font-semibold text-white">Aimés totaux</h3>
+                                    <MetricHelp content={APP_HELP['insights-total-likes']} />
+                                </div>
+                                <p className="text-sm text-text-muted">Nuage de jeux — taille = nombre de likes</p>
+                            </div>
+                            <Heart size={20} className="text-primary" />
+                        </div>
+                        <div className="h-80 overflow-auto">
+                            {(() => {
+                                const withLikes = socialMetrics.filter(d => (Number(d.total_likes) || 0) > 0)
+                                const maxL = Math.max(1, ...withLikes.map(d => Number(d.total_likes) || 0))
+                                const minSize = 12
+                                const maxSize = 26
+                                return (
+                                    <div className="flex flex-wrap gap-x-4 gap-y-3 content-center justify-center items-center min-h-[280px] p-4">
+                                        {withLikes.length === 0 ? (
+                                            <p className="text-text-muted text-sm">Aucun like sur la période</p>
+                                        ) : (
+                                            withLikes.map((d) => {
+                                                const v = Number(d.total_likes) || 0
+                                                const size = minSize + (v / maxL) * (maxSize - minSize)
+                                                return (
+                                                    <span
+                                                        key={d.game_id}
+                                                        className="text-primary/90 hover:text-primary font-medium transition-colors"
+                                                        style={{ fontSize: `${size}px` }}
+                                                        title={`${d.game_id} : ${v} like(s)`}
+                                                    >
+                                                        {d.game_id.replace(/_/g, ' ')}
+                                                    </span>
+                                                )
+                                            })
+                                        )}
+                                    </div>
+                                )
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* Top 10 par likes — tableau à côté des nuages */}
+                    <div className="bg-surface border border-border rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                                <Heart size={20} className="text-primary" />
+                                Top 10 — J'aime
+                            </h3>
+                        </div>
+                        <ExpandableTable
+                            data={[...socialMetrics]
+                                .filter(d => (Number(d.total_likes) || 0) > 0)
+                                .sort((a, b) => (Number(b.total_likes) || 0) - (Number(a.total_likes) || 0))
+                                .map((d, i) => ({
+                                    rank: i + 1,
+                                    game_id: d.game_id.replace(/_/g, ' '),
+                                    total_likes: Number(d.total_likes) || 0
+                                }))}
+                            defaultVisible={10}
+                            columns={[
+                                { key: 'rank', label: '#', sortable: true },
+                                { key: 'game_id', label: 'Jeu', sortable: true },
+                                { key: 'total_likes', label: "J'aime", sortable: true }
+                            ]}
+                        />
+                    </div>
+
+                    {/* Top 10 par favoris — tableau à côté des nuages */}
+                    <div className="bg-surface border border-border rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                                <Bookmark size={20} className="text-primary" />
+                                Top 10 — Favoris
+                            </h3>
+                        </div>
+                        <ExpandableTable
+                            data={[...socialMetrics]
+                                .filter(d => (Number(d.total_bookmarks) || 0) > 0)
+                                .sort((a, b) => (Number(b.total_bookmarks) || 0) - (Number(a.total_bookmarks) || 0))
+                                .map((d, i) => ({
+                                    rank: i + 1,
+                                    game_id: d.game_id.replace(/_/g, ' '),
+                                    total_bookmarks: Number(d.total_bookmarks) || 0
+                                }))}
+                            defaultVisible={10}
+                            columns={[
+                                { key: 'rank', label: '#', sortable: true },
+                                { key: 'game_id', label: 'Jeu', sortable: true },
+                                { key: 'total_bookmarks', label: 'Favoris', sortable: true }
+                            ]}
+                        />
                     </div>
 
                     {/* Comments Ratio */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <div className="bg-surface border border-border rounded-xl p-6 lg:col-span-2">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Comments Ratio</h3>
-                                    <MetricHelp
-                                        title="Comments Ratio"
-                                        definition="Nombre moyen de commentaires par joueur."
-                                        usage="Mesure si un jeu suscite des discussions ou des débats."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Ratio commentaires</h3>
+                                    <MetricHelp content={APP_HELP['insights-comments-ratio']} />
                                 </div>
-                                <p className="text-sm text-slate-400">Comments per Player</p>
+                                <p className="text-sm text-text-muted">Commentaires par joueur</p>
                             </div>
-                            <MessageSquare className="text-purple-400 w-6 h-6" />
+                            <MessageSquare size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={socialMetrics} layout="vertical" margin={{ left: 40 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                    <XAxis type="number" stroke="#94a3b8" />
-                                    <YAxis dataKey="game_id" type="category" stroke="#94a3b8" width={100} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} />
+                                    <XAxis type="number" stroke={CHART_THEME.axis} />
+                                    <YAxis dataKey="game_id" type="category" stroke={CHART_THEME.axis} width={100} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
                                         itemStyle={{ color: '#fff' }}
                                     />
-                                    <Bar dataKey="comments_to_players_ratio" fill="#a855f7" radius={[0, 4, 4, 0]} name="Comments/Player" />
+                                    <Bar dataKey="comments_to_players_ratio" fill="#a855f7" radius={[0, 4, 4, 0]} name="Commentaires/joueur" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -281,32 +400,28 @@ export default function GameInsights() {
             {activeTab === 'monetization' && monetizationMetrics && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Conversion by Play Time */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 lg:col-span-2">
+                    <div className="bg-surface border border-border rounded-xl p-6 lg:col-span-2">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Conversion by Play Time</h3>
-                                    <MetricHelp
-                                        title="Conversion by Play Time"
-                                        definition="Taux de conversion en fonction du temps de jeu cumulé avant l'achat."
-                                        usage="Permet de savoir à quel moment du cycle de vie un joueur est prêt à payer."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Conversion par temps de jeu</h3>
+                                    <MetricHelp content={APP_HELP['insights-conversion-by-play-time']} />
                                 </div>
-                                <p className="text-sm text-slate-400">When do users convert?</p>
+                                <p className="text-sm text-text-muted">À quel moment les joueurs convertissent ?</p>
                             </div>
-                            <DollarSign className="text-green-400 w-6 h-6" />
+                            <DollarSign size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={monetizationMetrics.conversion_by_play_time}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                    <XAxis dataKey="hours_range" stroke="#94a3b8" />
-                                    <YAxis stroke="#94a3b8" unit="%" />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} />
+                                    <XAxis dataKey="hours_range" stroke={CHART_THEME.axis} />
+                                    <YAxis stroke={CHART_THEME.axis} unit="%" />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
                                         itemStyle={{ color: '#fff' }}
                                     />
-                                    <Bar dataKey="conversion_rate" fill="#22c55e" radius={[4, 4, 0, 0]} name="Conversion Rate" />
+                                    <Bar dataKey="conversion_rate" fill="#22c55e" radius={[4, 4, 0, 0]} name="Taux conversion" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -314,49 +429,72 @@ export default function GameInsights() {
 
                     {/* Funnel KPIs */}
                     <div className="grid grid-cols-2 gap-6">
-                        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col justify-center items-center relative">
+                        <div className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-center items-center relative">
                             <div className="absolute top-4 right-4">
-                                <MetricHelp
-                                    title="Cart Abandonment"
-                                    definition="Pourcentage d'initiations d'achat annulées."
-                                    usage="Un taux élevé peut indiquer un prix trop haut ou un processus complexe."
-                                />
+                                <MetricHelp content={APP_HELP['insights-cart-abandonment']} />
                             </div>
-                            <h3 className="text-slate-400 text-sm font-medium mb-2">Cart Abandonment</h3>
+                            <h3 className="text-text-muted text-sm font-medium mb-2">Abandon de panier</h3>
                             <div className="text-3xl font-bold text-red-400">
                                 {monetizationMetrics.cart_abandonment_rate}%
                             </div>
                         </div>
-                        <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col justify-center items-center relative">
+                        <div className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-center items-center relative">
                             <div className="absolute top-4 right-4">
-                                <MetricHelp
-                                    title="Pack le Plus Acheté"
-                                    definition="Type de pack (produit) le plus fréquemment acheté."
-                                    usage="Identifie l'offre la plus populaire auprès de vos utilisateurs payants."
-                                />
+                                <MetricHelp content={APP_HELP['insights-pack-plus-achete']} />
                             </div>
-                            <h3 className="text-slate-400 text-sm font-medium mb-2">Pack le Plus Acheté</h3>
+                            <h3 className="text-text-muted text-sm font-medium mb-2">Pack le Plus Acheté</h3>
                             <div className="text-2xl font-bold text-green-400">
                                 {monetizationMetrics.most_purchased_pack}
                             </div>
+                            {monetizationMetrics.most_purchased_pack === 'Non renseigné' && (
+                                <p className="text-xs text-text-muted mt-2 text-center">
+                                    `purchaseTypes` est vide dans les snapshots.
+                                </p>
+                            )}
                         </div>
                     </div>
 
+                    {/* Conversion par jeu */}
+                    {conversionByGame.length > 0 && (
+                        <div className="bg-surface border border-border rounded-xl p-6 lg:col-span-2">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <div className="flex items-center">
+                                        <h3 className="text-lg font-semibold text-white">Conversion par jeu</h3>
+                                        <MetricHelp content={APP_HELP['insights-conversion-par-jeu']} />
+                                    </div>
+                                    <p className="text-sm text-text-muted">% acheteurs parmi les joueurs du jeu (30 j)</p>
+                                </div>
+                                <Users size={20} className="text-primary" />
+                            </div>
+                            <div className="h-80">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={conversionByGame.slice(0, 15)} layout="vertical" margin={{ left: 80 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} />
+                                        <XAxis type="number" stroke={CHART_THEME.axis} unit="%" />
+                                        <YAxis dataKey="game_id" type="category" stroke={CHART_THEME.axis} width={75} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
+                                            itemStyle={{ color: '#fff' }}
+                                        />
+                                        <Bar dataKey="conversion_rate_percent" fill="#22c55e" radius={[0, 4, 4, 0]} name="Conversion %" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Purchases by Game */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <div className="bg-surface border border-border rounded-xl p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Top Trigger Games</h3>
-                                    <MetricHelp
-                                        title="Top Trigger Games"
-                                        definition="Jeu le plus joué par les utilisateurs qui finissent par acheter."
-                                        usage="Identifie les jeux qui convertissent le mieux les utilisateurs gratuits en payants."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Jeux déclencheurs</h3>
+                                    <MetricHelp content={APP_HELP['insights-top-trigger-games']} />
                                 </div>
-                                <p className="text-sm text-slate-400">Most played game by purchasers</p>
+                                <p className="text-sm text-text-muted">Jeu le plus joué par les acheteurs</p>
                             </div>
-                            <Users className="text-blue-400 w-6 h-6" />
+                            <Users size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
@@ -377,7 +515,7 @@ export default function GameInsights() {
                                         ))}
                                     </Pie>
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
+                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
                                         itemStyle={{ color: '#fff' }}
                                     />
                                 </PieChart>
@@ -386,45 +524,49 @@ export default function GameInsights() {
                     </div>
 
                     {/* Purchases by Type */}
-                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <div className="bg-surface border border-border rounded-xl p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <div className="flex items-center">
-                                    <h3 className="text-lg font-semibold text-white">Purchases by Type</h3>
-                                    <MetricHelp
-                                        title="Purchases by Type"
-                                        definition="Répartition des ventes par type de produit (Pack)."
-                                        usage="Permet de voir quel produit est le plus populaire."
-                                    />
+                                    <h3 className="text-lg font-semibold text-white">Achats par type</h3>
+                                    <MetricHelp content={APP_HELP['insights-purchases-by-type']} />
                                 </div>
-                                <p className="text-sm text-slate-400">Distribution of product types</p>
+                                <p className="text-sm text-text-muted">Répartition des types de produits</p>
                             </div>
-                            <DollarSign className="text-purple-400 w-6 h-6" />
+                            <DollarSign size={20} className="text-primary" />
                         </div>
                         <div className="h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={monetizationMetrics.purchases_by_type}
-                                        cx="50%"
-                                        cy="50%"
-                                        labelLine={false}
-                                        label={({ name, percent }) => `${name} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
-                                        outerRadius={80}
-                                        fill="#82ca9d"
-                                        dataKey="count"
-                                        nameKey="product_id"
-                                    >
-                                        {monetizationMetrics.purchases_by_type.map((_, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155' }}
-                                        itemStyle={{ color: '#fff' }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
+                            {monetizationMetrics.purchases_by_type.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={monetizationMetrics.purchases_by_type}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={false}
+                                            label={({ name, percent }) => `${name} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
+                                            outerRadius={80}
+                                            fill="#82ca9d"
+                                            dataKey="count"
+                                            nameKey="product_id"
+                                        >
+                                            {monetizationMetrics.purchases_by_type.map((_, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
+                                            itemStyle={{ color: '#fff' }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-center">
+                                    <p className="text-text-muted text-sm">
+                                        Donnée indisponible : purchaseTypes est vide sur la période.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

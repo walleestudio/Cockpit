@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@source "./**/*.{js,ts,jsx,tsx}";
+
 @theme {
   --color-background: #050505;
   --color-surface: #0A0A0A;
@@ -16,13 +18,22 @@
 }
 
 @layer base {
-  body {
-    @apply bg-background text-text-primary antialiased;
+  html {
+    background-color: #050505;
+    color: #ffffff;
   }
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: #050505;
+    color: #ffffff;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  #root {
+    min-height: 100vh;
+    background-color: #050505;
+    color: #ffffff;
+  }
 }

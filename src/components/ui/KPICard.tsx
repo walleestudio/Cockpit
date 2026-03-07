@@ -1,7 +1,7 @@
 import React from 'react'
 import { ArrowUpRight, ArrowDownRight, type LucideIcon } from 'lucide-react'
 import { clsx } from 'clsx'
-import { MetricHelp } from './MetricHelp'
+import { MetricHelp, type MetricHelpContent } from './MetricHelp'
 
 interface KPICardProps {
     title: string
@@ -10,6 +10,9 @@ interface KPICardProps {
     trendLabel?: string
     icon?: LucideIcon
     color?: string
+    /** Aide complète (définition, calcul, utilité, interprétation, exemples) — prioritaire si fourni. */
+    content?: MetricHelpContent
+    /** Aide courte (legacy) : définition + usage. */
     help?: {
         definition: string
         usage: string
@@ -22,6 +25,7 @@ export const KPICard: React.FC<KPICardProps> = ({
     trend,
     trendLabel,
     icon: Icon,
+    content: helpContent,
     help
 }) => {
     const isPositive = trend && trend > 0
@@ -32,7 +36,7 @@ export const KPICard: React.FC<KPICardProps> = ({
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-2">
                     <h3 className="text-sm font-medium text-text-secondary uppercase tracking-wider">{title}</h3>
-                    {help && <MetricHelp title={title} definition={help.definition} usage={help.usage} />}
+                    {(helpContent || help) && (helpContent ? <MetricHelp content={helpContent} /> : <MetricHelp title={title} definition={help!.definition} usage={help!.usage} />)}
                 </div>
                 {Icon && (
                     <div className="p-2 bg-white/5 rounded-lg text-text-muted group-hover:text-white transition-colors">

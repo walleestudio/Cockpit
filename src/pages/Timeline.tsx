@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { History, TrendingUp } from 'lucide-react'
 import { AnalyticsLineChart } from '../components/ui/charts/LineChart'
+import { MetricHelp } from '../components/ui/MetricHelp'
 import { AnalyticsService, type DailyMetrics } from '../services/analyticsService'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorAlert } from '../components/ui/ErrorAlert'
 import { DateRangePicker } from '../components/ui/DateRangePicker'
+import { APP_HELP } from '../help/appHelp'
 
 export const Timeline: React.FC = () => {
     const [loading, setLoading] = useState(true)
@@ -19,7 +21,11 @@ export const Timeline: React.FC = () => {
         const fetchMetrics = async () => {
             try {
                 setLoading(true)
-                const data = await AnalyticsService.getDailyMetrics(30)
+                const days = Math.max(
+                    1,
+                    Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24))
+                )
+                const data = await AnalyticsService.getDailyMetrics(days)
                 setMetrics(data)
             } catch (err) {
                 setError('Erreur lors du chargement des données temporelles')
@@ -61,6 +67,7 @@ export const Timeline: React.FC = () => {
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                             <TrendingUp size={20} className="text-primary" />
                             Joueurs Uniques & Sessions
+                            <MetricHelp content={APP_HELP['timeline-joueurs-sessions']} />
                         </h3>
                     </div>
                     <AnalyticsLineChart
@@ -77,6 +84,7 @@ export const Timeline: React.FC = () => {
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                             <History size={20} className="text-purple-500" />
                             Temps de Jeu (Heures)
+                            <MetricHelp content={APP_HELP['timeline-temps-jeu-heures']} />
                         </h3>
                     </div>
                     <AnalyticsLineChart

@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { Download, FileSpreadsheet, FileJson, Calendar } from 'lucide-react'
 import { AnalyticsService } from '../services/analyticsService'
 import { DateRangePicker } from '../components/ui/DateRangePicker'
+import { MetricHelp } from '../components/ui/MetricHelp'
+import { APP_HELP } from '../help/appHelp'
 
 export const Export: React.FC = () => {
     const [isExporting, setIsExporting] = useState(false)
@@ -13,15 +15,46 @@ export const Export: React.FC = () => {
     const handleExport = async (format: 'csv' | 'json') => {
         setIsExporting(true)
         try {
-            // Simulation d'export
-            await new Promise(resolve => setTimeout(resolve, 1500))
+            const days = Math.max(
+                1,
+                Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24))
+            )
+            const data = await AnalyticsService.getDailyMetrics(days)
+            const filenameRange = `${dateRange.start.toISOString().split('T')[0]}_${dateRange.end.toISOString().split('T')[0]}`
 
-            const data = await AnalyticsService.getDailyMetrics(30)
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+            let blob: Blob
+            if (format === 'csv') {
+                const headers = [
+                    'date',
+                    'unique_players',
+                    'total_play_time_hours',
+                    'total_sessions',
+                    'avg_session_duration_minutes',
+                    'total_purchase_attempts',
+                    'total_purchase_successes'
+                ]
+                const rows = data.map(row => [
+                    row.date,
+                    row.unique_players,
+                    row.total_play_time_hours,
+                    row.total_sessions,
+                    row.avg_session_duration_minutes,
+                    row.total_purchase_attempts,
+                    row.total_purchase_successes
+                ])
+                const csvContent = [
+                    headers.join(','),
+                    ...rows.map(values => values.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(','))
+                ].join('\n')
+                blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+            } else {
+                blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+            }
+
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `analytics_export_${new Date().toISOString().split('T')[0]}.${format}`
+            a.download = `analytics_export_${filenameRange}.${format}`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
@@ -47,6 +80,7 @@ export const Export: React.FC = () => {
                     <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                         <Calendar size={20} className="text-primary" />
                         Période d'export
+                        <MetricHelp content={APP_HELP['export-periode']} />
                     </h3>
                     <div className="space-y-4">
                         <p className="text-text-muted text-sm">
@@ -66,6 +100,7 @@ export const Export: React.FC = () => {
                     <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                         <Download size={20} className="text-success" />
                         Format de téléchargement
+                        <MetricHelp content={APP_HELP['export-action']} />
                     </h3>
                     <div className="space-y-4">
                         <button

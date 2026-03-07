@@ -50,11 +50,11 @@ export interface ChurnCost {
     churn_cost_index: number
 }
 
-export interface AuthEfficiency {
+export interface SessionEfficiency {
     metric_date: string
-    total_auth_sessions: number
     total_sessions: number
-    sessions_per_auth: number
+    active_players: number
+    sessions_per_active_player: number
 }
 
 export class CostMetricsService {
@@ -125,46 +125,50 @@ export class CostMetricsService {
                       AND game_id IS NOT NULL
                     GROUP BY game_id
                 ),
+                user_game_activity AS (
+                    SELECT 
+                        s.user_id,
+                        g.game_id,
+                        SUM(COALESCE((s.metrics->'gameLaunches'->>g.game_id)::int, 0)) AS launches,
+                        MAX(COALESCE((s.metrics->>'purchaseSuccesses')::int, 0)) AS purchase_successes
+                    FROM user_analytics_snapshots s
+                    CROSS JOIN LATERAL jsonb_object_keys(s.metrics->'gameLaunches') AS g(game_id)
+                    WHERE snapshot_date >= NOW() - INTERVAL '${days} days'
+                    GROUP BY s.user_id, g.game_id
+                ),
                 player_totals AS (
                     SELECT 
-                        jsonb_object_keys(metrics->'gameLaunches') AS game_id,
+                        game_id,
                         COUNT(DISTINCT user_id) AS unique_players
-                    FROM user_analytics_snapshots
-                    WHERE snapshot_date >= NOW() - INTERVAL '${days} days'
-                    GROUP BY jsonb_object_keys(metrics->'gameLaunches')
+                    FROM user_game_activity
+                    WHERE launches > 0
+                    GROUP BY game_id
                 ),
-                purchase_totals AS (
+                conversion_stats AS (
                     SELECT 
-                        key AS game_id,
-                        SUM(value::int) AS total_purchases
-                    FROM user_analytics_snapshots,
-                         jsonb_each_text(metrics->'purchaseTypes')
-                    WHERE snapshot_date >= NOW() - INTERVAL '${days} days'
-                    GROUP BY key
-                ),
-                conversion_rates AS (
-                    SELECT 
-                        key AS game_id,
+                        game_id,
+                        COUNT(DISTINCT CASE WHEN purchase_successes > 0 THEN user_id END) AS purchasers,
                         ROUND(
-                            (SUM((metrics->>'purchaseSuccesses')::int)::numeric / 
-                             NULLIF(SUM((metrics->>'purchaseAttempts')::int), 0) * 100), 2
+                            (
+                                COUNT(DISTINCT CASE WHEN purchase_successes > 0 THEN user_id END)::numeric
+                                / NULLIF(COUNT(DISTINCT user_id), 0) * 100
+                            ),
+                            2
                         ) AS conversion_rate
-                    FROM user_analytics_snapshots,
-                         jsonb_object_keys(metrics->'gameLaunches') AS key
-                    WHERE snapshot_date >= NOW() - INTERVAL '${days} days'
-                    GROUP BY key
+                    FROM user_game_activity
+                    WHERE launches > 0
+                    GROUP BY game_id
                 )
                 SELECT 
                     c.game_id,
                     ROUND((c.total_db_requests::numeric / NULLIF(p.unique_players, 0)), 2)::float AS db_requests_per_player,
                     ROUND((c.total_bandwidth::numeric / NULLIF(p.unique_players, 0) / 1024 / 1024), 2)::float AS mb_per_player,
-                    ROUND((pt.total_purchases::numeric / NULLIF(c.total_cost_units, 0) * 1000000), 2)::float AS purchases_per_million_cost,
-                    COALESCE(cr.conversion_rate, 0)::float AS conversion_rate,
+                    ROUND((cs.purchasers::numeric / NULLIF(c.total_cost_units, 0) * 1000000), 2)::float AS purchases_per_million_cost,
+                    COALESCE(cs.conversion_rate, 0)::float AS conversion_rate,
                     p.unique_players::int
                 FROM cost_totals c
                 JOIN player_totals p ON c.game_id = p.game_id
-                LEFT JOIN purchase_totals pt ON c.game_id = pt.game_id
-                LEFT JOIN conversion_rates cr ON c.game_id = cr.game_id
+                LEFT JOIN conversion_stats cs ON c.game_id = cs.game_id
                 ORDER BY purchases_per_million_cost DESC NULLS LAST
                 LIMIT 20
             `
@@ -179,7 +183,10 @@ export class CostMetricsService {
     static async getBandwidthIntensity(days: number = 7): Promise<BandwidthIntensity[]> {
         try {
             const query = `
-                WITH bandwidth_totals AS (
+                WITH params AS (
+                    SELECT NOW() - INTERVAL '${days} days' AS start_ts
+                ),
+                bandwidth_totals AS (
                     SELECT 
                         game_id,
                         SUM(metric_value) AS total_bandwidth_bytes
@@ -189,14 +196,45 @@ export class CostMetricsService {
                       AND game_id IS NOT NULL
                     GROUP BY game_id
                 ),
+                snapshot_game_values AS (
+                    SELECT
+                        s.user_id,
+                        s.snapshot_date,
+                        g.game_id,
+                        COALESCE((s.metrics->'gamePlayTime'->>g.game_id)::float, 0) AS play_time_seconds
+                    FROM user_analytics_snapshots s
+                    CROSS JOIN LATERAL jsonb_object_keys(COALESCE(s.metrics->'gamePlayTime', '{}'::jsonb)) AS g(game_id)
+                    WHERE s.user_id IS NOT NULL
+                ),
+                in_window AS (
+                    SELECT
+                        v.user_id,
+                        v.game_id,
+                        MAX(v.play_time_seconds) AS play_time_seconds
+                    FROM snapshot_game_values v
+                    JOIN params p ON TRUE
+                    WHERE v.snapshot_date >= p.start_ts
+                    GROUP BY v.user_id, v.game_id
+                ),
+                before_start AS (
+                    SELECT DISTINCT ON (v.user_id, v.game_id)
+                        v.user_id,
+                        v.game_id,
+                        v.play_time_seconds
+                    FROM snapshot_game_values v
+                    JOIN params p ON TRUE
+                    WHERE v.snapshot_date < p.start_ts
+                    ORDER BY v.user_id, v.game_id, v.snapshot_date DESC
+                ),
                 playtime_totals AS (
-                    SELECT 
-                        key AS game_id,
-                        SUM(value::float) / 3600 AS total_play_time_hours
-                    FROM user_analytics_snapshots,
-                         jsonb_each_text(metrics->'gamePlayTime')
-                    WHERE snapshot_date >= NOW() - INTERVAL '${days} days'
-                    GROUP BY key
+                    SELECT
+                        w.game_id,
+                        SUM(GREATEST(w.play_time_seconds - COALESCE(b.play_time_seconds, 0), 0)) / 3600 AS total_play_time_hours
+                    FROM in_window w
+                    LEFT JOIN before_start b
+                      ON b.user_id = w.user_id
+                     AND b.game_id = w.game_id
+                    GROUP BY w.game_id
                 )
                 SELECT 
                     b.game_id,
@@ -219,7 +257,10 @@ export class CostMetricsService {
     static async getChurnCost(days: number = 7): Promise<ChurnCost[]> {
         try {
             const query = `
-                WITH cost_totals AS (
+                WITH params AS (
+                    SELECT NOW() - INTERVAL '${days} days' AS start_ts
+                ),
+                cost_totals AS (
                     SELECT 
                         game_id,
                         SUM(CASE WHEN metric_type = 'db_request' THEN metric_value ELSE 0 END) AS total_db_requests
@@ -228,16 +269,57 @@ export class CostMetricsService {
                       AND game_id IS NOT NULL
                     GROUP BY game_id
                 ),
-                exit_rates AS (
+                snapshot_game_values AS (
+                    SELECT
+                        s.user_id,
+                        s.snapshot_date,
+                        g.game_id,
+                        COALESCE((s.metrics->'gameLaunches'->>g.game_id)::int, 0) AS launches,
+                        COALESCE((s.metrics->'gameExits'->>g.game_id)::int, 0) AS exits
+                    FROM user_analytics_snapshots s
+                    CROSS JOIN LATERAL jsonb_object_keys(COALESCE(s.metrics->'gameLaunches', '{}'::jsonb)) AS g(game_id)
+                    WHERE s.user_id IS NOT NULL
+                ),
+                in_window AS (
+                    SELECT
+                        v.user_id,
+                        v.game_id,
+                        MAX(v.launches) AS launches,
+                        MAX(v.exits) AS exits
+                    FROM snapshot_game_values v
+                    JOIN params p ON TRUE
+                    WHERE v.snapshot_date >= p.start_ts
+                    GROUP BY v.user_id, v.game_id
+                ),
+                before_start AS (
+                    SELECT DISTINCT ON (v.user_id, v.game_id)
+                        v.user_id,
+                        v.game_id,
+                        v.launches,
+                        v.exits
+                    FROM snapshot_game_values v
+                    JOIN params p ON TRUE
+                    WHERE v.snapshot_date < p.start_ts
+                    ORDER BY v.user_id, v.game_id, v.snapshot_date DESC
+                ),
+                game_deltas AS (
                     SELECT 
-                        key AS game_id,
-                        SUM((metrics->'gameExits'->>key)::int) AS total_exits,
-                        SUM((metrics->'gameLaunches'->>key)::int) AS total_launches,
-                        ROUND((SUM((metrics->'gameExits'->>key)::int)::numeric / NULLIF(SUM((metrics->'gameLaunches'->>key)::int), 0) * 100), 2) AS exit_rate_percent
-                    FROM user_analytics_snapshots,
-                         jsonb_object_keys(metrics->'gameLaunches') AS key
-                    WHERE snapshot_date >= NOW() - INTERVAL '${days} days'
-                    GROUP BY key
+                        w.game_id,
+                        GREATEST(w.exits - COALESCE(b.exits, 0), 0) AS exits_delta,
+                        GREATEST(w.launches - COALESCE(b.launches, 0), 0) AS launches_delta
+                    FROM in_window w
+                    LEFT JOIN before_start b
+                      ON b.user_id = w.user_id
+                     AND b.game_id = w.game_id
+                ),
+                exit_rates AS (
+                    SELECT
+                        game_id,
+                        SUM(exits_delta) AS total_exits,
+                        SUM(launches_delta) AS total_launches,
+                        ROUND((SUM(exits_delta)::numeric / NULLIF(SUM(launches_delta), 0) * 100), 2) AS exit_rate_percent
+                    FROM game_deltas
+                    GROUP BY game_id
                 )
                 SELECT 
                     c.game_id,
@@ -258,39 +340,49 @@ export class CostMetricsService {
         }
     }
 
-    static async getAuthEfficiency(days: number = 7): Promise<AuthEfficiency[]> {
+    static async getSessionEfficiency(days: number = 7): Promise<SessionEfficiency[]> {
         try {
             const query = `
-                WITH auth_totals AS (
+                WITH daily_user_max AS (
                     SELECT 
-                        COUNT(*) AS total_auth_sessions,
-                        DATE(created_at) AS metric_date
-                    FROM cost_metrics
-                    WHERE metric_type = 'auth_session'
-                      AND created_at >= NOW() - INTERVAL '${days} days'
-                    GROUP BY DATE(created_at)
+                        user_id,
+                        snapshot_date::date AS metric_date,
+                        MAX(COALESCE((metrics->>'sessionCount')::int, 0)) AS session_count
+                    FROM user_analytics_snapshots
+                    WHERE user_id IS NOT NULL
+                    GROUP BY user_id, snapshot_date::date
+                ),
+                daily_deltas AS (
+                    SELECT
+                        user_id,
+                        metric_date,
+                        GREATEST(
+                            session_count - COALESCE(LAG(session_count) OVER (PARTITION BY user_id ORDER BY metric_date), 0),
+                            0
+                        ) AS session_delta
+                    FROM daily_user_max
                 ),
                 session_totals AS (
-                    SELECT 
-                        SUM((metrics->>'sessionCount')::int) AS total_sessions,
-                        snapshot_date::date AS metric_date
-                    FROM user_analytics_snapshots
-                    WHERE snapshot_date >= NOW() - INTERVAL '${days} days'
-                    GROUP BY snapshot_date::date
+                    SELECT
+                        metric_date,
+                        SUM(session_delta) AS total_sessions,
+                        COUNT(DISTINCT CASE WHEN session_delta > 0 THEN user_id END) AS active_players
+                    FROM daily_deltas
+                    WHERE metric_date >= (NOW() - INTERVAL '${days} days')::date
+                    GROUP BY metric_date
                 )
                 SELECT 
-                    a.metric_date::text,
-                    a.total_auth_sessions::int,
+                    s.metric_date::text,
                     s.total_sessions::int,
-                    ROUND((s.total_sessions::numeric / NULLIF(a.total_auth_sessions, 0)), 2)::float AS sessions_per_auth
-                FROM auth_totals a
-                JOIN session_totals s ON a.metric_date = s.metric_date
-                ORDER BY a.metric_date DESC
+                    s.active_players::int,
+                    ROUND((s.total_sessions::numeric / NULLIF(s.active_players, 0)), 2)::float AS sessions_per_active_player
+                FROM session_totals s
+                ORDER BY s.metric_date DESC
             `
             const { rows } = await pool.query(query)
             return rows
         } catch (error) {
-            console.error('Error fetching auth efficiency:', error)
+            console.error('Error fetching session efficiency:', error)
             throw error
         }
     }

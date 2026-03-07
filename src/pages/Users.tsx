@@ -1,23 +1,38 @@
 import React, { useEffect, useState } from 'react'
-import { Search, Filter, Activity } from 'lucide-react'
-import { DataTable } from '../components/ui/DataTable'
-import { AnalyticsService, type UserAnalytics } from '../services/analyticsService'
+import { Search, Filter, Activity, UserX } from 'lucide-react'
+import { ExpandableTable } from '../components/ui/ExpandableTable'
+import { MetricHelp } from '../components/ui/MetricHelp'
+import { AnalyticsService, type UserAnalytics, type KPIData, type SessionDurationBucket } from '../services/analyticsService'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorAlert } from '../components/ui/ErrorAlert'
 import { AnalyticsBarChart } from '../components/ui/charts/BarChart'
+import { APP_HELP } from '../help/appHelp'
+
+const INACTIVE_YEARS_RGPD = 3
 
 export const Users: React.FC = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [users, setUsers] = useState<UserAnalytics[]>([])
+    const [inactiveUsers, setInactiveUsers] = useState<UserAnalytics[]>([])
+    const [summary, setSummary] = useState<KPIData | null>(null)
+    const [sessionDurationDistribution, setSessionDurationDistribution] = useState<SessionDurationBucket[]>([])
     const [searchTerm, setSearchTerm] = useState('')
 
     useEffect(() => {
         const fetchUsers = async () => {
             try {
                 setLoading(true)
-                const data = await AnalyticsService.getUsersAnalytics(100)
+                const [data, inactive, kpiData, durationBuckets] = await Promise.all([
+                    AnalyticsService.getUsersAnalytics(100),
+                    AnalyticsService.getUsersInactiveSinceYears(INACTIVE_YEARS_RGPD, 500),
+                    AnalyticsService.getKPIs(30),
+                    AnalyticsService.getSessionDurationDistribution(30)
+                ])
                 setUsers(data)
+                setInactiveUsers(inactive)
+                setSummary(kpiData)
+                setSessionDurationDistribution(durationBuckets)
             } catch (err) {
                 setError('Erreur lors du chargement des utilisateurs')
                 console.error(err)
@@ -69,6 +84,7 @@ export const Users: React.FC = () => {
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                             <Activity size={20} className="text-primary" />
                             Distribution des Sessions
+                            <MetricHelp content={APP_HELP['users-distribution-sessions']} />
                         </h3>
                     </div>
                     <AnalyticsBarChart
@@ -81,38 +97,114 @@ export const Users: React.FC = () => {
                 </div>
 
                 <div className="bg-surface border border-border rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Métriques Clés</h3>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">Métriques Clés</h3>
                     <div className="space-y-4">
-                        <div className="p-4 bg-white/5 rounded-lg">
-                            <div className="text-sm text-text-muted mb-1">Utilisateurs Actifs</div>
-                            <div className="text-2xl font-bold text-white">{users.length}</div>
-                        </div>
-                        <div className="p-4 bg-white/5 rounded-lg">
-                            <div className="text-sm text-text-muted mb-1">Moyenne Sessions/User</div>
-                            <div className="text-2xl font-bold text-white">
-                                {(users.reduce((acc, u) => acc + u.total_sessions, 0) / (users.length || 1)).toFixed(1)}
+                        <div className="p-4 bg-white/5 rounded-lg flex items-start justify-between gap-2">
+                            <div>
+                                <div className="text-sm text-text-muted mb-1 flex items-center gap-1">
+                                    Utilisateurs Actifs
+                                    <MetricHelp content={APP_HELP['users-utilisateurs-actifs']} />
+                                </div>
+                                <div className="text-2xl font-bold text-white">{summary?.unique_players || 0}</div>
                             </div>
                         </div>
                         <div className="p-4 bg-white/5 rounded-lg">
-                            <div className="text-sm text-text-muted mb-1">Taux de Conversion</div>
+                            <div className="text-sm text-text-muted mb-1 flex items-center gap-1">
+                                Moyenne Sessions/User
+                                <MetricHelp content={APP_HELP['users-moyenne-sessions-user']} />
+                            </div>
                             <div className="text-2xl font-bold text-white">
-                                {(users.reduce((acc, u) => acc + u.conversion_rate_percent, 0) / (users.length || 1)).toFixed(1)}%
+                                {((summary?.total_sessions || 0) / (summary?.unique_players || 1)).toFixed(1)}
+                            </div>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-lg">
+                            <div className="text-sm text-text-muted mb-1 flex items-center gap-1">
+                                Taux de Conversion
+                                <MetricHelp content={APP_HELP['users-taux-conversion']} />
+                            </div>
+                            <div className="text-2xl font-bold text-white">
+                                {(summary?.conversion_rate_percent || 0).toFixed(1)}%
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            {sessionDurationDistribution.length > 0 && (
+                <div className="bg-surface border border-border rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                            Distribution des durées de session
+                            <MetricHelp content={APP_HELP['users-distribution-durees-session']} />
+                        </h3>
+                        <span className="text-xs text-text-muted">30 derniers jours — durée moyenne par utilisateur</span>
+                    </div>
+                    <AnalyticsBarChart
+                        data={sessionDurationDistribution.map(b => ({ name: b.range, value: b.count }))}
+                        dataKey="value"
+                        xKey="name"
+                        color="#a855f7"
+                        name="Utilisateurs"
+                    />
+                </div>
+            )}
+
             <div className="bg-surface border border-border rounded-xl p-6">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-white">Liste des Utilisateurs</h3>
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <UserX size={20} className="text-amber-500" />
+                        Comptes inactifs &gt; {INACTIVE_YEARS_RGPD} ans (suppression RGPD)
+                        <MetricHelp content={APP_HELP['users-comptes-inactifs-rgpd']} />
+                    </h3>
+                    <span className="text-xs text-text-muted">{inactiveUsers.length} compte(s) éligible(s)</span>
+                </div>
+                <p className="text-sm text-text-muted mb-4">
+                    Utilisateurs sans connexion depuis plus de {INACTIVE_YEARS_RGPD} ans — à supprimer pour conformité RGPD si politique de rétention le prévoit.
+                </p>
+                {inactiveUsers.length === 0 ? (
+                    <p className="text-sm text-text-muted py-4">Aucun compte inactif depuis plus de {INACTIVE_YEARS_RGPD} ans.</p>
+                ) : (
+                    <ExpandableTable<UserAnalytics>
+                        data={inactiveUsers}
+                        defaultVisible={10}
+                        columns={[
+                            {
+                                key: 'pseudo',
+                                label: 'Pseudo',
+                                sortable: true,
+                                render: (val, item) => (String(val || '').trim() || item.user_id)
+                            },
+                            { key: 'user_id', label: 'ID Utilisateur', sortable: true },
+                            {
+                                key: 'last_snapshot_date',
+                                label: 'Dernière connexion',
+                                sortable: true,
+                                render: (val) => {
+                                    const d = new Date(val)
+                                    const days = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24))
+                                    return `${d.toLocaleDateString('fr-FR')} (${days} j)`
+                                }
+                            },
+                            { key: 'snapshot_count', label: 'Snapshots', sortable: true }
+                        ]}
+                    />
+                )}
+            </div>
+
+            <div className="bg-surface border border-border rounded-xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        Liste des Utilisateurs
+                        <MetricHelp content={APP_HELP['users-liste-utilisateurs']} />
+                    </h3>
                     <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-text-muted hover:text-white bg-white/5 rounded-lg transition-colors">
                         <Filter size={16} />
                         Filtres
                     </button>
                 </div>
-                <DataTable
+                <ExpandableTable
                     data={filteredUsers}
+                    defaultVisible={10}
                     columns={[
                         {
                             key: 'pseudo',

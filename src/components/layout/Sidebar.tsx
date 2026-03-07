@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Gamepad2, Users, Download, Settings, LineChart, X, DollarSign, Shield } from 'lucide-react'
+import { LayoutDashboard, Gamepad2, Users, Download, Settings, LineChart, X, DollarSign, Shield, TrendingUp, CheckCircle2, Lightbulb } from 'lucide-react'
 import { clsx } from 'clsx'
 
 interface SidebarProps {
@@ -12,11 +12,14 @@ const NAV_ITEMS = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Gamepad2, label: 'Games', path: '/games' },
     { icon: Users, label: 'Users', path: '/users' },
-    { icon: LineChart, label: 'Insights', path: '/insights' },
-    { icon: DollarSign, label: 'Cost & Performance', path: '/cost-metrics' },
+    { icon: TrendingUp, label: 'Timeline', path: '/timeline' },
+    { icon: LineChart, label: 'Insights Jeux', path: '/insights' },
+    { icon: DollarSign, label: 'Coûts & performance', path: '/cost-metrics' },
     { icon: Shield, label: 'Modération', path: '/moderation' },
     { icon: Download, label: 'Export', path: '/export' },
     { icon: Settings, label: 'Configuration', path: '/config' },
+    { icon: Lightbulb, label: 'Préconisations', path: '/recommendations' },
+    { icon: CheckCircle2, label: 'Vérification', path: '/verify' },
 ]
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
@@ -32,10 +35,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             />
 
             {/* Sidebar Content */}
-            <aside className={clsx(
-                "fixed inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border transform transition-transform duration-300 lg:translate-x-0 pt-[env(safe-area-inset-top)] flex flex-col",
-                isOpen ? "translate-x-0" : "-translate-x-full"
-            )}>
+            <aside
+                className={clsx(
+                    "fixed inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border transform transition-transform duration-300 lg:translate-x-0 pt-[env(safe-area-inset-top)] flex flex-col",
+                    isOpen ? "translate-x-0" : "-translate-x-full"
+                )}
+                style={{ backgroundColor: '#0A0A0A', color: '#ffffff', borderRightColor: '#222' }}
+            >
                 <div className="h-16 flex items-center justify-between px-6 border-b border-white/5">
                     <span className="text-xl font-bold bg-gradient-to-r from-white to-text-secondary bg-clip-text text-transparent">
                         Labjoo Analytics

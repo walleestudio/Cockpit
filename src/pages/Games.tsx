@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { Gamepad2, Search, Filter } from 'lucide-react'
-import { DataTable } from '../components/ui/DataTable'
+import { ExpandableTable } from '../components/ui/ExpandableTable'
+import { MetricHelp } from '../components/ui/MetricHelp'
 import { AnalyticsService, type GameAnalytics } from '../services/analyticsService'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorAlert } from '../components/ui/ErrorAlert'
 import { AnalyticsBarChart } from '../components/ui/charts/BarChart'
+import { APP_HELP } from '../help/appHelp'
 
 export const Games: React.FC = () => {
     const [loading, setLoading] = useState(true)
@@ -31,6 +33,13 @@ export const Games: React.FC = () => {
     const filteredGames = games.filter(game =>
         game.game_id.toLowerCase().includes(searchTerm.toLowerCase())
     )
+
+    // Valeurs d'affichage Likes / Favoris (totaux enrichis ou deltas), pour que le tableau ait toujours des clés fiables
+    const gamesForTable = filteredGames.map(g => ({
+        ...g,
+        display_likes: Number(g.total_likes ?? g.net_likes ?? 0),
+        display_bookmarks: Number(g.total_bookmarks ?? g.net_bookmarks ?? 0)
+    }))
 
     const topGamesByPlayTime = [...games]
         .sort((a, b) => b.total_play_time_hours - a.total_play_time_hours)
@@ -68,6 +77,7 @@ export const Games: React.FC = () => {
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                             <Gamepad2 size={20} className="text-primary" />
                             Top 5 - Temps de Jeu (heures)
+                            <MetricHelp content={APP_HELP['games-top5-temps-jeu']} />
                         </h3>
                     </div>
                     <AnalyticsBarChart
@@ -80,20 +90,29 @@ export const Games: React.FC = () => {
                 </div>
 
                 <div className="bg-surface border border-border rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Statistiques Globales</h3>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">Statistiques Globales</h3>
                     <div className="space-y-4">
                         <div className="p-4 bg-white/5 rounded-lg">
-                            <div className="text-sm text-text-muted mb-1">Total Jeux Actifs</div>
+                            <div className="text-sm text-text-muted mb-1 flex items-center gap-1">
+                                Total Jeux Actifs
+                                <MetricHelp content={APP_HELP['games-total-jeux-actifs']} />
+                            </div>
                             <div className="text-2xl font-bold text-white">{games.length}</div>
                         </div>
                         <div className="p-4 bg-white/5 rounded-lg">
-                            <div className="text-sm text-text-muted mb-1">Temps Moyen / Session</div>
+                            <div className="text-sm text-text-muted mb-1 flex items-center gap-1">
+                                Temps Moyen / Session
+                                <MetricHelp content={APP_HELP['games-temps-moyen-session']} />
+                            </div>
                             <div className="text-2xl font-bold text-white">
                                 {(games.reduce((acc, g) => acc + g.avg_play_time_minutes, 0) / (games.length || 1)).toFixed(1)} min
                             </div>
                         </div>
                         <div className="p-4 bg-white/5 rounded-lg">
-                            <div className="text-sm text-text-muted mb-1">Taux de Rétention</div>
+                            <div className="text-sm text-text-muted mb-1 flex items-center gap-1">
+                                Taux de Rétention
+                                <MetricHelp content={APP_HELP['games-taux-retention']} />
+                            </div>
                             <div className="text-2xl font-bold text-white">
                                 {(100 - (games.reduce((acc, g) => acc + g.exit_rate_percent, 0) / (games.length || 1))).toFixed(1)}%
                             </div>
@@ -104,23 +123,39 @@ export const Games: React.FC = () => {
 
             <div className="bg-surface border border-border rounded-xl p-6">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-white">Liste des Jeux</h3>
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        Liste des Jeux
+                        <MetricHelp content={APP_HELP['games-liste-jeux']} />
+                    </h3>
                     <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-text-muted hover:text-white bg-white/5 rounded-lg transition-colors">
                         <Filter size={16} />
                         Filtres
                     </button>
                 </div>
-                <DataTable
-                    data={filteredGames}
+                <ExpandableTable
+                    data={gamesForTable}
+                    defaultVisible={10}
                     columns={[
                         { key: 'game_id', label: 'Jeu', sortable: true },
                         { key: 'unique_players', label: 'Joueurs', sortable: true },
                         { key: 'total_launches', label: 'Lancements', sortable: true },
                         {
+                            key: 'launches_per_player',
+                            label: 'Lanc./joueur',
+                            sortable: true,
+                            render: (val) => (val != null ? Number(val).toFixed(1) : '–')
+                        },
+                        {
                             key: 'avg_play_time_minutes',
                             label: 'Temps Moyen',
                             sortable: true,
                             render: (val) => `${Math.round(Number(val))} min`
+                        },
+                        {
+                            key: 'share_rate',
+                            label: 'Partage/joueur',
+                            sortable: true,
+                            render: (val) => (val != null ? Number(val).toFixed(2) : '–')
                         },
                         {
                             key: 'exit_rate_percent',
@@ -132,8 +167,31 @@ export const Games: React.FC = () => {
                                 </span>
                             )
                         },
-                        { key: 'net_likes', label: 'Likes', sortable: true },
-                        { key: 'total_shares', label: 'Partages', sortable: true }
+                        {
+                            key: 'display_likes',
+                            label: 'Likes',
+                            sortable: true,
+                            render: (val) => (val != null ? Number(val) : '–')
+                        },
+                        {
+                            key: 'display_bookmarks',
+                            label: 'Favoris',
+                            sortable: true,
+                            render: (val) => (val != null ? Number(val) : '–')
+                        },
+                        { key: 'total_shares', label: 'Partages', sortable: true },
+                        {
+                            key: 'total_leaderboard_views',
+                            label: 'Vues leaderboard',
+                            sortable: true,
+                            render: (val) => (val != null ? Number(val) : '–')
+                        },
+                        {
+                            key: 'total_score_saves',
+                            label: 'Sauvegardes score',
+                            sortable: true,
+                            render: (val) => (val != null ? Number(val) : '–')
+                        }
                     ]}
                 />
             </div>

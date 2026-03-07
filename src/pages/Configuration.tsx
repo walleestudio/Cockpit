@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { Save, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
-import { ConfigService, type GameConfig, type ConfigCategory } from '../services/configService'
+import { ConfigService, type GameConfig } from '../services/configService'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorAlert } from '../components/ui/ErrorAlert'
 import { getCurrentEnv, switchEnv, type AppEnv } from '../lib/neon'
@@ -56,29 +56,47 @@ export const Configuration: React.FC = () => {
     }
 
     const categorizedConfigs = useMemo(() => {
-        const categories: ConfigCategory[] = [
-            { name: 'Limites de Temps', configs: [] },
-            { name: 'Kill Switches', configs: [] },
-            { name: 'Offres Premium', configs: [] },
-            { name: 'Système', configs: [] },
-            { name: 'Debug', configs: [] }
-        ]
+        const categoryNames = [
+            'Limites & seuils',
+            'Monétisation & publicité',
+            'Kill switches & fonctionnalités',
+            'Analytics & collecte',
+            'Système & technique',
+            'Mails',
+            'InApp Messages',
+            'Gestion des versions minimales',
+            'Autres'
+        ] as const
+        const buckets: GameConfig[][] = categoryNames.map(() => [])
 
+        const key = (c: GameConfig) => c.config_key.toLowerCase()
         configs.forEach(config => {
-            if (config.config_key.includes('limit')) {
-                categories[0].configs.push(config)
-            } else if (config.config_key.includes('kill_switch')) {
-                categories[1].configs.push(config)
-            } else if (config.config_key.includes('premium') || config.config_key.includes('ad_frequency')) {
-                categories[2].configs.push(config)
-            } else if (config.config_key.includes('analytics') || config.config_key.includes('refresh') || config.config_key.includes('format')) {
-                categories[3].configs.push(config)
+            const k = key(config)
+            // Versions minimales en premier pour que min_version n'aille pas dans Limites
+            if (k.includes('min_version') || k.includes('minimum_version') || k.includes('force_update') || k.includes('app_version') || (k.includes('version') && !k.includes('conversion'))) {
+                buckets[7].push(config)
+            } else if (k.includes('limit') || k.includes('threshold') || k.includes('max_') || k.includes('min_')) {
+                buckets[0].push(config)
+            } else if (k.includes('premium') || k.includes('ad_') || k.includes('ad_frequency') || k.includes('purchase') || k.includes('offer')) {
+                buckets[1].push(config)
+            } else if (k.includes('kill_switch') || k.includes('_enabled')) {
+                buckets[2].push(config)
+            } else if (k.includes('analytics') || k.includes('refresh') || k.includes('format') || k.includes('snapshot') || k.includes('send_')) {
+                buckets[3].push(config)
+            } else if (k.includes('timeout') || k.includes('url')) {
+                buckets[4].push(config)
+            } else if (k.includes('mail') || k.includes('email') || k.includes('smtp')) {
+                buckets[5].push(config)
+            } else if (k.includes('inapp') || k.includes('in_app') || k.includes('in_app_message') || (k.includes('push') && k.includes('message'))) {
+                buckets[6].push(config)
             } else {
-                categories[4].configs.push(config)
+                buckets[8].push(config)
             }
         })
 
-        return categories.filter(cat => cat.configs.length > 0)
+        return categoryNames
+            .map((name, i) => ({ name, configs: buckets[i] }))
+            .filter(cat => cat.configs.length > 0)
     }, [configs])
 
     if (loading && configs.length === 0) return <LoadingSpinner />
@@ -185,7 +203,6 @@ const ConfigCard: React.FC<ConfigCardProps> = ({ config, onSave, isSaving }) => 
     }
 
     const isBoolean = config.config_value === 'true' || config.config_value === 'false'
-    const isNumber = !isNaN(Number(config.config_value)) && !isBoolean && config.config_key !== 'time_limit_display_format'
 
     return (
         <div className="bg-surface border border-border rounded-xl p-5 flex flex-col gap-4 hover:border-primary/30 transition-colors group">
@@ -219,7 +236,7 @@ const ConfigCard: React.FC<ConfigCardProps> = ({ config, onSave, isSaving }) => 
                 ) : (
                     <div className="relative">
                         <input
-                            type={isNumber ? "number" : "text"}
+                            type="text"
                             value={value}
                             onChange={(e) => handleValueChange(e.target.value)}
                             className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors font-mono"
