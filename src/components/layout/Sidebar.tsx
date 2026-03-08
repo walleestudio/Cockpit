@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Gamepad2, Users, Download, Settings, LineChart, X, DollarSign, Shield, TrendingUp, CheckCircle2, Lightbulb } from 'lucide-react'
+import { LayoutDashboard, Gamepad2, Users, Download, Settings, LineChart, X, DollarSign, Shield, TrendingUp, CheckCircle2, Lightbulb, ShieldAlert } from 'lucide-react'
 import { clsx } from 'clsx'
 
 interface SidebarProps {
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
     { icon: Settings, label: 'Configuration', path: '/config' },
     { icon: Lightbulb, label: 'Préconisations', path: '/recommendations' },
     { icon: CheckCircle2, label: 'Vérification', path: '/verify' },
+    { icon: ShieldAlert, label: 'Données personnelles (RGPD)', path: '/data-privacy' },
 ]
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {

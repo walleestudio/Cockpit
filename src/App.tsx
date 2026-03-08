@@ -11,6 +11,7 @@ import CostMetrics from './pages/CostMetrics'
 import Moderation from './pages/Moderation'
 import { VerifyData } from './pages/VerifyData'
 import { Recommendations } from './pages/Recommendations'
+import { DataPrivacy } from './pages/DataPrivacy'
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="config" element={<Configuration />} />
           <Route path="verify" element={<VerifyData />} />
           <Route path="recommendations" element={<Recommendations />} />
+          <Route path="data-privacy" element={<DataPrivacy />} />
         </Route>
       </Routes>
     </Router>

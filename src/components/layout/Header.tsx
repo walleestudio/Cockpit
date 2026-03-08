@@ -1,11 +1,23 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Menu, Bell } from 'lucide-react'
+import { getCurrentEnv, switchEnv, type AppEnv } from '../../lib/neon'
 
 interface HeaderProps {
     onMenuClick: () => void
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
+    const [currentEnv, setCurrentEnv] = useState<AppEnv>('PROD')
+
+    useEffect(() => {
+        setCurrentEnv(getCurrentEnv())
+    }, [])
+
+    const handleSwitchEnv = (env: AppEnv) => {
+        setCurrentEnv(env)
+        switchEnv(env)
+    }
+
     return (
         <header
             className="bg-background/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-30 pt-[env(safe-area-inset-top)]"
@@ -20,6 +32,26 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                 </button>
 
                 <div className="flex items-center gap-4 ml-auto">
+                    <div className="flex items-center bg-surface border border-border rounded-lg p-1">
+                        <button
+                            onClick={() => handleSwitchEnv('PROD')}
+                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${currentEnv === 'PROD'
+                                ? 'bg-primary text-white shadow-sm'
+                                : 'text-text-muted hover:text-white'
+                                }`}
+                        >
+                            PROD
+                        </button>
+                        <button
+                            onClick={() => handleSwitchEnv('DEV')}
+                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${currentEnv === 'DEV'
+                                ? 'bg-amber-500 text-white shadow-sm'
+                                : 'text-text-muted hover:text-white'
+                                }`}
+                        >
+                            DEV
+                        </button>
+                    </div>
                     <button className="p-2 text-text-muted hover:text-white transition-colors relative">
                         <Bell size={20} />
                         <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full ring-2 ring-background"></span>

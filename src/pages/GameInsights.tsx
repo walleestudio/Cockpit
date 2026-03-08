@@ -17,6 +17,25 @@ import { ExpandableTable } from '../components/ui/ExpandableTable'
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8']
 const CHART_THEME = { surface: '#0A0A0A', border: '#222222', axis: '#71717a' }
 
+/** Légende affichée sous les camemberts : libellés complets avec retour à la ligne. */
+function PieLegendList({ items, nameKey }: { items: Array<Record<string, unknown>>; nameKey: string }) {
+    if (!items?.length) return null
+    return (
+        <div className="flex flex-wrap gap-x-4 gap-y-2 justify-center mt-3 px-2">
+            {items.map((entry, i) => {
+                const name = String(entry[nameKey] ?? '')
+                const color = COLORS[i % COLORS.length]
+                return (
+                    <div key={i} className="flex items-center gap-2 min-w-0 max-w-full">
+                        <span className="flex-shrink-0 w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                        <span className="text-sm text-text-primary break-words break-all">{name}</span>
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
 export default function GameInsights() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -428,8 +447,8 @@ export default function GameInsights() {
                     </div>
 
                     {/* Funnel KPIs */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-center items-center relative">
+                    <div className="grid grid-cols-2 gap-6 min-w-0">
+                        <div className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-center items-center relative min-w-0">
                             <div className="absolute top-4 right-4">
                                 <MetricHelp content={APP_HELP['insights-cart-abandonment']} />
                             </div>
@@ -438,12 +457,12 @@ export default function GameInsights() {
                                 {monetizationMetrics.cart_abandonment_rate}%
                             </div>
                         </div>
-                        <div className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-center items-center relative">
+                        <div className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-center items-center relative min-w-0">
                             <div className="absolute top-4 right-4">
                                 <MetricHelp content={APP_HELP['insights-pack-plus-achete']} />
                             </div>
                             <h3 className="text-text-muted text-sm font-medium mb-2">Pack le Plus Acheté</h3>
-                            <div className="text-2xl font-bold text-green-400">
+                            <div className="text-2xl font-bold text-green-400 text-center break-words break-all w-full min-w-0 px-2">
                                 {monetizationMetrics.most_purchased_pack}
                             </div>
                             {monetizationMetrics.most_purchased_pack === 'Non renseigné' && (
@@ -496,30 +515,34 @@ export default function GameInsights() {
                             </div>
                             <Users size={20} className="text-primary" />
                         </div>
-                        <div className="h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={monetizationMetrics.purchases_by_game}
-                                        cx="50%"
-                                        cy="50%"
-                                        labelLine={false}
-                                        label={({ name, percent }) => `${name} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
-                                        outerRadius={80}
-                                        fill="#8884d8"
-                                        dataKey="purchase_count"
-                                        nameKey="game_id"
-                                    >
-                                        {monetizationMetrics.purchases_by_game.map((_, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
-                                        itemStyle={{ color: '#fff' }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
+                        <div className="flex flex-col min-h-0">
+                            <div className="h-64 flex-shrink-0">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={monetizationMetrics.purchases_by_game}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={false}
+                                            label={false}
+                                            outerRadius={80}
+                                            fill="#8884d8"
+                                            dataKey="purchase_count"
+                                            nameKey="game_id"
+                                        >
+                                            {monetizationMetrics.purchases_by_game.map((_, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
+                                            itemStyle={{ color: '#fff' }}
+                                            formatter={(value: number, name: string) => [`${value} achat(s)`, name]}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <PieLegendList items={monetizationMetrics.purchases_by_game} nameKey="game_id" />
                         </div>
                     </div>
 
@@ -535,33 +558,39 @@ export default function GameInsights() {
                             </div>
                             <DollarSign size={20} className="text-primary" />
                         </div>
-                        <div className="h-80">
+                        <div className="flex flex-col min-h-0">
                             {monetizationMetrics.purchases_by_type.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={monetizationMetrics.purchases_by_type}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={({ name, percent }) => `${name} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
-                                            outerRadius={80}
-                                            fill="#82ca9d"
-                                            dataKey="count"
-                                            nameKey="product_id"
-                                        >
-                                            {monetizationMetrics.purchases_by_type.map((_, index) => (
-                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
-                                            itemStyle={{ color: '#fff' }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
+                                <>
+                                    <div className="h-64 flex-shrink-0">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={monetizationMetrics.purchases_by_type}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    labelLine={false}
+                                                    label={false}
+                                                    outerRadius={80}
+                                                    fill="#82ca9d"
+                                                    dataKey="count"
+                                                    nameKey="product_id"
+                                                >
+                                                    {monetizationMetrics.purchases_by_type.map((_, index) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: CHART_THEME.surface, borderColor: CHART_THEME.border }}
+                                                    itemStyle={{ color: '#fff' }}
+                                                    formatter={(value: number, name: string) => [`${value} achat(s)`, name]}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <PieLegendList items={monetizationMetrics.purchases_by_type} nameKey="product_id" />
+                                </>
                             ) : (
-                                <div className="h-full flex items-center justify-center text-center">
+                                <div className="h-64 flex items-center justify-center text-center">
                                     <p className="text-text-muted text-sm">
                                         Donnée indisponible : purchaseTypes est vide sur la période.
                                     </p>

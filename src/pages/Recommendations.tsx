@@ -255,6 +255,11 @@ export const Recommendations: React.FC = () => {
     const flowByGame = new Map(flowMetrics.map(f => [f.game_id, f]))
     const socialByGame = new Map(socialMetrics.map(s => [s.game_id, s]))
 
+    const favoriteGamesWithSocial = favoriteGames.map(g => ({
+        ...g,
+        social_engagement_rate: socialByGame.get(g.game_id)?.social_engagement_rate ?? 0
+    }))
+
     const rankCol = ({ key: 'rank', label: '#', sortable: true }) as const
 
     // Axe 11 — Flash vs Immersifs (catégorie par temps moyen)
@@ -388,7 +393,7 @@ export const Recommendations: React.FC = () => {
             {/* AXE 1 — Jeux favoris à renforcer (tri : likes + bookmarks DESC) */}
             <SectionCard icon={Heart} title="1. Jeux à renforcer" subtitle="Triés par likes + bookmarks (les plus plébiscités en premier)" sectionId="axe-1">
                 <ExpandableTable
-                    data={favoriteGames}
+                    data={favoriteGamesWithSocial}
                     columns={[
                         rankCol,
                         { key: 'game_id', label: 'Jeu', sortable: true },
@@ -397,11 +402,10 @@ export const Recommendations: React.FC = () => {
                         { key: 'total_comments', label: 'Commentaires', sortable: true },
                         { key: 'unique_players', label: 'Joueurs', sortable: true },
                         {
-                            key: 'game_id', label: 'Engagement social',
-                            render: (_: unknown, item: Record<string, any>) => {
-                                const s = socialByGame.get(item.game_id)
-                                return s ? s.social_engagement_rate.toFixed(2) : '–'
-                            }
+                            key: 'social_engagement_rate',
+                            label: 'Engagement social',
+                            sortable: true,
+                            render: (v: unknown) => (v != null && v !== '') ? Number(v).toFixed(2) : '–'
                         }
                     ]}
                 />
